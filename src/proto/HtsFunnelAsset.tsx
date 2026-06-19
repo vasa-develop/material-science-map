@@ -12,8 +12,9 @@ import * as THREE from "three";
 const COUNT = 60;
 const PASS_RATE = 0.3;
 
-const Y_SPAWN = 2.9;
+const Y_SPAWN = 3.9;
 const NECK_Y = -0.8;
+const NECK_SCALE = 0.42;
 const EXIT_Y = -3.4;
 const R_TOP = 1.5;
 const R_NECK = 0.22;
@@ -69,43 +70,48 @@ function glyphTexture(text: string): THREE.Texture {
 function FunnelBody({ spin, pulseRef }: { spin: boolean; pulseRef: React.MutableRefObject<number> }) {
   const group = useRef<THREE.Group>(null);
 
+  const TOP_GEO_Y = 1.4;
+  const BOT_GEO_Y = -1.35;
   const geo = useMemo(() => {
     const pts: THREE.Vector2[] = [
-      new THREE.Vector2(R_TOP, 1.4),
+      new THREE.Vector2(R_TOP, TOP_GEO_Y),
       new THREE.Vector2(1.28, 1.05),
       new THREE.Vector2(1.0, 0.65),
       new THREE.Vector2(0.72, 0.18),
       new THREE.Vector2(0.46, -0.32),
       new THREE.Vector2(0.3, -0.66),
       new THREE.Vector2(R_NECK, NECK_Y),
-      new THREE.Vector2(R_NECK, -1.35),
+      new THREE.Vector2(R_NECK, BOT_GEO_Y),
     ];
-    return new THREE.LatheGeometry(pts, 64);
+    const g = new THREE.LatheGeometry(pts, 64);
+    // vertical light-blue -> violet gradient baked into vertex colors
+    const violet = new THREE.Color(0x9a6bff);
+    const lightBlue = new THREE.Color(0x7fd6ff);
+    const pos = g.attributes.position;
+    const colors = new Float32Array(pos.count * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const f = clamp01((pos.getY(i) - BOT_GEO_Y) / (TOP_GEO_Y - BOT_GEO_Y));
+      c.copy(lightBlue).lerp(violet, f);
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    return g;
   }, []);
 
   const mat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: 0x2b4a6b,
-        emissive: 0x39d6ff,
+        vertexColors: true,
+        emissive: 0x3a55c8,
         emissiveIntensity: 0.4,
-        roughness: 0.35,
-        metalness: 0.4,
+        roughness: 0.32,
+        metalness: 0.45,
         transparent: true,
-        opacity: 0.22,
+        opacity: 0.62,
         side: THREE.DoubleSide,
-        depthWrite: false,
-      }),
-    []
-  );
-  const wireMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: 0x6cf0ff,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.12,
-        blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),
     []
@@ -132,9 +138,8 @@ function FunnelBody({ spin, pulseRef }: { spin: boolean; pulseRef: React.Mutable
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     const pulse = pulseRef.current;
-    mat.emissiveIntensity = 0.32 + 0.25 * (0.5 + 0.5 * Math.sin(t * 1.6)) + pulse * 1.6;
-    mat.opacity = 0.18 + 0.1 * pulse;
-    wireMat.opacity = 0.1 + 0.25 * pulse;
+    mat.emissiveIntensity = 0.32 + 0.25 * (0.5 + 0.5 * Math.sin(t * 1.6)) + pulse * 1.4;
+    mat.opacity = 0.58 + 0.18 * pulse;
     if (group.current && spin) group.current.rotation.y = t * 0.4;
     if (group.current && !spin) group.current.rotation.y = 0;
   });
@@ -142,7 +147,6 @@ function FunnelBody({ spin, pulseRef }: { spin: boolean; pulseRef: React.Mutable
   return (
     <group ref={group}>
       <mesh geometry={geo} material={mat} />
-      <mesh geometry={geo} material={wireMat} />
       <lineLoop geometry={topRing}>
         <lineBasicMaterial color={0x9af4ff} transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
       </lineLoop>
@@ -204,12 +208,13 @@ function FormulaStream({
       pulse += Math.exp(-(d * d) / 0.0009) * (passed ? 1 : 0.7);
 
       let x: number, y: number, z: number;
-      let s = 1;
+      let alpha = 1;
+      let szf = 1;
       let col = NEUTRAL;
       let visible = true;
 
       if (u <= 0.5) {
-        // descend into the funnel mouth, swirling toward the neck
+        // descend into the funnel mouth, swirling toward the neck (shrinking)
         const f = u / 0.5;
         const R = lerp(R_TOP * 0.78, R_NECK, smoother(f));
         const th = c.theta + t * 0.7 + f * 4.5;
@@ -217,9 +222,10 @@ function FormulaStream({
         x = Math.cos(th) * (R + wob);
         z = Math.sin(th) * (R + wob);
         y = lerp(Y_SPAWN, NECK_Y, f);
-        s = u < 0.05 ? u / 0.05 : 1;
+        alpha = u < 0.05 ? u / 0.05 : 1;
+        szf = lerp(1, NECK_SCALE, smoother(f));
       } else if (passed) {
-        // spat out of the spout, drifting down and apart
+        // spat out of the spout, drifting down and apart (growing back)
         const f = (u - 0.5) / 0.5;
         const R = R_NECK + f * 0.7;
         const th = c.theta + t * 0.5 + 4.5;
@@ -227,7 +233,8 @@ function FormulaStream({
         z = Math.sin(th) * R;
         y = lerp(NECK_Y - 0.55, EXIT_Y, f);
         col = lerp3(NEUTRAL, PASS, clamp01(f * 2.5));
-        s = f > 0.8 ? 1 - (f - 0.8) / 0.2 : 1;
+        alpha = f > 0.8 ? 1 - (f - 0.8) / 0.2 : 1;
+        szf = lerp(NECK_SCALE, 1, smoother(clamp01(f * 1.4)));
       } else {
         // dissolves inside the neck
         const f = clamp01((u - 0.5) / 0.16);
@@ -236,18 +243,19 @@ function FormulaStream({
         x = Math.cos(th) * R;
         z = Math.sin(th) * R;
         y = NECK_Y - f * 0.15;
-        s = 1 - f;
+        alpha = 1 - f;
+        szf = NECK_SCALE * (1 - f);
         if (u > 0.66) visible = false;
       }
 
-      sp.visible = visible && s > 0.01;
+      sp.visible = visible && alpha > 0.01;
       if (sp.visible) {
-        const fs = size * 0.5 * s;
+        const fs = size * 0.5 * szf;
         sp.position.set(x, y, z);
         sp.scale.set(fs * GLYPH_ASPECT, fs, 1);
         tintCol.setRGB(col[0], col[1], col[2]);
         sp.material.color.copy(tintCol);
-        sp.material.opacity = clamp01(s);
+        sp.material.opacity = clamp01(alpha);
       }
     }
     pulseRef.current = Math.min(1, pulse);
