@@ -9,6 +9,7 @@ import GenerativeGemAsset from "./GenerativeGemAsset";
 import HtsAsset from "./HtsAsset";
 import HtsFormulaAsset from "./HtsFormulaAsset";
 import HtsFunnelAsset from "./HtsFunnelAsset";
+import HteAsset from "./HteAsset";
 import MdAsset from "./MdAsset";
 import MdOrbitalAsset from "./MdOrbitalAsset";
 import MdProbeAsset from "./MdProbeAsset";
@@ -37,6 +38,7 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "sdl", label: "Self-driving lab · loop", Comp: SdlAsset },
   { id: "crucible", label: "Bulk · crucible", Comp: CrucibleAsset },
   { id: "thinfilm", label: "Precision · thin-film", Comp: ThinFilmAsset },
+  { id: "hte", label: "HTE · well-plate", Comp: HteAsset },
 ];
 
 export default function ProtoGallery() {
