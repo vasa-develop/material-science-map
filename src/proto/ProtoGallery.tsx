@@ -5,6 +5,7 @@ import GenerativeGemAsset from "./GenerativeGemAsset";
 import HtsAsset from "./HtsAsset";
 import MdAsset from "./MdAsset";
 import MdOrbitalAsset from "./MdOrbitalAsset";
+import MlipAsset from "./MlipAsset";
 import Orbital2sAsset from "./Orbital2sAsset";
 
 /** A scratch gallery to author + review each node's 3D asset in isolation. */
@@ -12,6 +13,7 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "md", label: "MD · species", Comp: MdAsset },
   { id: "md-phase", label: "MD · phase color", Comp: () => <MdAsset mode="phase" /> },
   { id: "md-orbital", label: "MD · orbital atoms", Comp: MdOrbitalAsset },
+  { id: "mlip", label: "MLIP · energy landscape", Comp: MlipAsset },
   { id: "density", label: "DFT · electron density", Comp: DensityAsset },
   { id: "orbital-2s", label: "2s orbital", Comp: Orbital2sAsset },
   { id: "generative", label: "Generative · assembly", Comp: GenerativeAsset },
