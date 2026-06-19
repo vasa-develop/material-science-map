@@ -4,6 +4,8 @@ import CrucibleAsset from "./CrucibleAsset";
 import DatabaseStackAsset from "./DatabaseStackAsset";
 import DatabasesAsset from "./DatabasesAsset";
 import DensityAsset from "./DensityAsset";
+import FoundationsAsset from "./FoundationsAsset";
+import FutureAsset from "./FutureAsset";
 import GenerativeAsset from "./GenerativeAsset";
 import GenerativeGemAsset from "./GenerativeGemAsset";
 import HtsAsset from "./HtsAsset";
@@ -15,8 +17,10 @@ import MdAsset from "./MdAsset";
 import MdOrbitalAsset from "./MdOrbitalAsset";
 import MdProbeAsset from "./MdProbeAsset";
 import MlipAsset from "./MlipAsset";
+import MlipGraphAsset from "./MlipGraphAsset";
 import Orbital2sAsset from "./Orbital2sAsset";
 import PredictiveAsset from "./PredictiveAsset";
+import ProductionScalesAsset from "./ProductionScalesAsset";
 import SdlAsset from "./SdlAsset";
 import SynthesisParamsAsset from "./SynthesisParamsAsset";
 import ThinFilmAsset from "./ThinFilmAsset";
@@ -28,6 +32,7 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "md-orbital", label: "MD · orbital atoms", Comp: MdOrbitalAsset },
   { id: "md-probe", label: "MD · glow probes", Comp: MdProbeAsset },
   { id: "mlip", label: "MLIP · energy landscape", Comp: MlipAsset },
+  { id: "mlip-graph", label: "MLIP · neural graph", Comp: MlipGraphAsset },
   { id: "density", label: "DFT · electron density", Comp: DensityAsset },
   { id: "orbital-2s", label: "2s orbital", Comp: Orbital2sAsset },
   { id: "generative", label: "Generative · assembly", Comp: GenerativeAsset },
@@ -45,6 +50,9 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "predictive", label: "Predictive synthesis · pathway", Comp: PredictiveAsset },
   { id: "literature", label: "Literature · dark data", Comp: LiteratureAsset },
   { id: "params", label: "Synthesis parameters · gauges", Comp: SynthesisParamsAsset },
+  { id: "foundations", label: "Enabling foundations · rings", Comp: FoundationsAsset },
+  { id: "scales", label: "Production scales · vessels", Comp: ProductionScalesAsset },
+  { id: "future", label: "The future · aurora", Comp: FutureAsset },
 ];
 
 export default function ProtoGallery() {
