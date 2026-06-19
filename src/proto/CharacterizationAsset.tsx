@@ -325,7 +325,7 @@ export default function CharacterizationAsset() {
   const [sample, setSample] = useState<"lattice" | "chunk">("lattice");
   const [filmOpacity, setFilmOpacity] = useState(0.5);
   const [sampleSize, setSampleSize] = useState(0.5);
-  const [filmWidth, setFilmWidth] = useState(1.5);
+  const [filmWidth, setFilmWidth] = useState(0.65);
 
   const btn = (active: boolean) =>
     `px-3 py-1 rounded-md text-xs transition ${
