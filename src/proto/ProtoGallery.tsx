@@ -13,6 +13,7 @@ import MdOrbitalAsset from "./MdOrbitalAsset";
 import MdProbeAsset from "./MdProbeAsset";
 import MlipAsset from "./MlipAsset";
 import Orbital2sAsset from "./Orbital2sAsset";
+import SdlAsset from "./SdlAsset";
 
 /** A scratch gallery to author + review each node's 3D asset in isolation. */
 const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
@@ -31,6 +32,7 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "databases", label: "Databases · data crystal", Comp: DatabasesAsset },
   { id: "database-stack", label: "Databases · cylinder", Comp: DatabaseStackAsset },
   { id: "xrd", label: "Characterization · XRD", Comp: CharacterizationAsset },
+  { id: "sdl", label: "Self-driving lab · loop", Comp: SdlAsset },
 ];
 
 export default function ProtoGallery() {
