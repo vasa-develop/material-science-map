@@ -10,10 +10,9 @@ import * as THREE from "three";
  * film. The whole rig can orbit for a 360 view. Verb: diffract sample -> data.
  */
 
-const FILM_R = 1.9;
-const FILM_H = 0.95;
-const GAP = 0.17; // half-angle of the entrance/exit holes
-const BEAM_X = 3.0;
+const FILM_R = 3.3;
+const GAP = 0.13; // half-angle of the entrance/exit holes
+const BEAM_X = 4.6;
 const PHOTONS = 14;
 
 // Debye-Scherrer cones: {half-angle (deg from beam axis), color, dir (+1 fwd / -1 back)}
@@ -39,7 +38,21 @@ function whiteColorAttr(g: THREE.BufferGeometry) {
   return g;
 }
 
-function XrdScene({ rate, glowFreq, sample }: { rate: number; glowFreq: number; sample: "lattice" | "chunk" }) {
+function XrdScene({
+  rate,
+  glowFreq,
+  sample,
+  filmOpacity,
+  sampleSize,
+  filmWidth,
+}: {
+  rate: number;
+  glowFreq: number;
+  sample: "lattice" | "chunk";
+  filmOpacity: number;
+  sampleSize: number;
+  filmWidth: number;
+}) {
   const crystal = useRef<THREE.Group>(null);
   const photonMesh = useRef<THREE.InstancedMesh>(null);
   const coneMats = useRef<THREE.MeshBasicMaterial[]>([]);
@@ -141,9 +154,9 @@ function XrdScene({ rate, glowFreq, sample }: { rate: number; glowFreq: number; 
   // film band: two arc segments leaving gaps along the beam (±X) axis
   const filmSegs = useMemo(() => {
     const seg = (start: number) =>
-      new THREE.CylinderGeometry(FILM_R, FILM_R, FILM_H, 48, 1, true, start, Math.PI - 2 * GAP);
+      new THREE.CylinderGeometry(FILM_R, FILM_R, filmWidth, 48, 1, true, start, Math.PI - 2 * GAP);
     return [seg(Math.PI / 2 + GAP), seg((3 * Math.PI) / 2 + GAP)];
-  }, []);
+  }, [filmWidth]);
 
   // cones + their rim rings
   const cones = useMemo(
@@ -187,7 +200,7 @@ function XrdScene({ rate, glowFreq, sample }: { rate: number; glowFreq: number; 
     atomHalo.opacity = 0.28 + 0.4 * s;
     blockMat.emissive.setHSL(hue, 0.7, 0.4 + 0.18 * s);
     blockMat.emissiveIntensity = 0.18 + 0.5 * s;
-    if (crystal.current) crystal.current.scale.setScalar(1 + 0.07 * s);
+    if (crystal.current) crystal.current.scale.setScalar(sampleSize * (1 + 0.07 * s));
 
     // photons run the beam; firing a diffraction pulse as they cross the sample
     if (photonMesh.current) {
@@ -268,10 +281,10 @@ function XrdScene({ rate, glowFreq, sample }: { rate: number; glowFreq: number; 
             metalness={0.05}
             emissive={0x223049}
             emissiveIntensity={0.25}
-            transparent
-            opacity={0.5}
+            transparent={filmOpacity < 0.99}
+            opacity={filmOpacity}
             side={THREE.DoubleSide}
-            depthWrite={false}
+            depthWrite={filmOpacity >= 0.99}
           />
         </mesh>
       ))}
@@ -310,6 +323,9 @@ export default function CharacterizationAsset() {
   const [spin, setSpin] = useState(true);
   const [showFilm, setShowFilm] = useState(true);
   const [sample, setSample] = useState<"lattice" | "chunk">("lattice");
+  const [filmOpacity, setFilmOpacity] = useState(0.5);
+  const [sampleSize, setSampleSize] = useState(0.5);
+  const [filmWidth, setFilmWidth] = useState(1.5);
 
   const btn = (active: boolean) =>
     `px-3 py-1 rounded-md text-xs transition ${
@@ -318,13 +334,20 @@ export default function CharacterizationAsset() {
 
   return (
     <>
-      <Canvas className="absolute inset-0" camera={{ position: [3.4, 2.0, 4.2], fov: 50 }} dpr={[1, 2]}>
+      <Canvas className="absolute inset-0" camera={{ position: [5.6, 3.2, 7.0], fov: 50 }} dpr={[1, 2]}>
         <color attach="background" args={["#06070d"]} />
         <ambientLight intensity={0.6} />
         <directionalLight position={[3, 5, 4]} intensity={0.6} />
         <pointLight position={[2, 3, 3]} intensity={0.5} color={0x88aaff} />
-        <XrdScene rate={rate} glowFreq={glowFreq} sample={sample} />
-        <OrbitControls enablePan={false} enableZoom autoRotate={spin} autoRotateSpeed={1.1} minDistance={3} maxDistance={13} />
+        <XrdScene
+          rate={rate}
+          glowFreq={glowFreq}
+          sample={sample}
+          filmOpacity={filmOpacity}
+          sampleSize={sampleSize}
+          filmWidth={filmWidth}
+        />
+        <OrbitControls enablePan={false} enableZoom autoRotate={spin} autoRotateSpeed={1.1} minDistance={4} maxDistance={24} />
       </Canvas>
 
       <div className="pointer-events-none absolute inset-0">
@@ -356,6 +379,45 @@ export default function CharacterizationAsset() {
                 className="w-36 accent-sky-400"
               />
               <span className="text-[11px] tabular-nums text-slate-500">{glowFreq.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-xs text-slate-400">crystal size</span>
+              <input
+                type="range"
+                min={0.2}
+                max={1.4}
+                step={0.05}
+                value={sampleSize}
+                onChange={(e) => setSampleSize(parseFloat(e.target.value))}
+                className="w-36 accent-sky-400"
+              />
+              <span className="text-[11px] tabular-nums text-slate-500">{sampleSize.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-xs text-slate-400">ring width</span>
+              <input
+                type="range"
+                min={0.4}
+                max={3.2}
+                step={0.05}
+                value={filmWidth}
+                onChange={(e) => setFilmWidth(parseFloat(e.target.value))}
+                className="w-36 accent-sky-400"
+              />
+              <span className="text-[11px] tabular-nums text-slate-500">{filmWidth.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-xs text-slate-400">ring opacity</span>
+              <input
+                type="range"
+                min={0.1}
+                max={1}
+                step={0.05}
+                value={filmOpacity}
+                onChange={(e) => setFilmOpacity(parseFloat(e.target.value))}
+                className="w-36 accent-sky-400"
+              />
+              <span className="text-[11px] tabular-nums text-slate-500">{filmOpacity.toFixed(2)}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-20 text-xs text-slate-400">sample</span>
