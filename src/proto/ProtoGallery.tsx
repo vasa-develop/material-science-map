@@ -1,4 +1,5 @@
 import { useState, type ComponentType } from "react";
+import CharacterizationAsset from "./CharacterizationAsset";
 import DatabaseStackAsset from "./DatabaseStackAsset";
 import DatabasesAsset from "./DatabasesAsset";
 import DensityAsset from "./DensityAsset";
@@ -25,6 +26,7 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "hts", label: "HTS · screening funnel", Comp: HtsAsset },
   { id: "databases", label: "Databases · data crystal", Comp: DatabasesAsset },
   { id: "database-stack", label: "Databases · cylinder", Comp: DatabaseStackAsset },
+  { id: "xrd", label: "Characterization · XRD", Comp: CharacterizationAsset },
 ];
 
 export default function ProtoGallery() {
