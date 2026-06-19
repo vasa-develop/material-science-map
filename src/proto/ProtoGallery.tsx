@@ -1,5 +1,7 @@
 import { useState, type ComponentType } from "react";
 import DensityAsset from "./DensityAsset";
+import GenerativeAsset from "./GenerativeAsset";
+import GenerativeGemAsset from "./GenerativeGemAsset";
 import MdAsset from "./MdAsset";
 import MdOrbitalAsset from "./MdOrbitalAsset";
 import Orbital2sAsset from "./Orbital2sAsset";
@@ -11,6 +13,8 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "md-orbital", label: "MD · orbital atoms", Comp: MdOrbitalAsset },
   { id: "density", label: "DFT · electron density", Comp: DensityAsset },
   { id: "orbital-2s", label: "2s orbital", Comp: Orbital2sAsset },
+  { id: "generative", label: "Generative · assembly", Comp: GenerativeAsset },
+  { id: "generative-gem", label: "Generative · sparkle", Comp: GenerativeGemAsset },
 ];
 
 export default function ProtoGallery() {
