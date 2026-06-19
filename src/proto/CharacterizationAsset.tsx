@@ -323,7 +323,7 @@ export default function CharacterizationAsset() {
   const [spin, setSpin] = useState(true);
   const [showFilm, setShowFilm] = useState(true);
   const [sample, setSample] = useState<"lattice" | "chunk">("lattice");
-  const [filmOpacity, setFilmOpacity] = useState(0.5);
+  const [filmOpacity, setFilmOpacity] = useState(1);
   const [sampleSize, setSampleSize] = useState(0.5);
   const [filmWidth, setFilmWidth] = useState(0.65);
 
