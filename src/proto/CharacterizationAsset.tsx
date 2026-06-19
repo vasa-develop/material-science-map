@@ -4,22 +4,31 @@ import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 
 /**
- * Asset: Characterization (XRD). An X-ray beam strikes a spinning crystal and
- * diffracts into Debye-Scherrer rings on a detector; the 1D diffraction pattern
- * builds alongside. Verb: diffract — turn a physical sample back into data.
+ * Asset: Characterization (XRD) — Debye-Scherrer powder camera. An X-ray beam
+ * enters through a gap in the cylindrical film, strikes a glowing powder
+ * sample, and diffracts into colored cones whose rims land as rings on the
+ * film. The whole rig can orbit for a 360 view. Verb: diffract sample -> data.
  */
 
-const RING_RADII = [0.45, 0.8, 1.15, 1.5];
-const RING_COLOR = 0xffb15a;
-const DET_Z = -1.9;
-const PHOTONS = 12;
-const BEAM_X0 = -3.2;
+const FILM_R = 1.9;
+const FILM_H = 0.95;
+const GAP = 0.17; // half-angle of the entrance/exit holes
+const BEAM_X = 3.0;
+const PHOTONS = 14;
 
-function circlePoints(r: number, n = 96): THREE.BufferGeometry {
+// Debye-Scherrer cones: {half-angle (deg from beam axis), color, dir (+1 fwd / -1 back)}
+const CONES: { half: number; color: number; dir: 1 | -1 }[] = [
+  { half: 24, color: 0x4aa8ff, dir: -1 },
+  { half: 47, color: 0xffd24a, dir: 1 },
+  { half: 67, color: 0x5fe089, dir: 1 },
+  { half: 82, color: 0xff7fd0, dir: 1 },
+];
+
+function ringInYZ(r: number, n = 96): THREE.BufferGeometry {
   const pts: THREE.Vector3[] = [];
   for (let i = 0; i <= n; i++) {
     const a = (i / n) * Math.PI * 2;
-    pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, 0));
+    pts.push(new THREE.Vector3(0, Math.sin(a) * r, Math.cos(a) * r));
   }
   return new THREE.BufferGeometry().setFromPoints(pts);
 }
@@ -30,16 +39,16 @@ function whiteColorAttr(g: THREE.BufferGeometry) {
   return g;
 }
 
-function XrdScene({ rate, glow, spin }: { rate: number; glow: number; spin: boolean }) {
+function XrdScene({ rate, glowFreq }: { rate: number; glowFreq: number }) {
   const crystal = useRef<THREE.Group>(null);
   const photonMesh = useRef<THREE.InstancedMesh>(null);
-  const ringMats = useRef<THREE.LineBasicMaterial[]>([]);
-  const directSpot = useRef<THREE.Mesh>(null);
+  const coneMats = useRef<THREE.MeshBasicMaterial[]>([]);
+  const rimMats = useRef<THREE.LineBasicMaterial[]>([]);
 
-  // crystal lattice atoms (glow probes)
+  // powder sample: a little cluster of glow-probe atoms
   const { bases, atomCount } = useMemo(() => {
     const G = 3;
-    const sp = 0.3;
+    const sp = 0.26;
     const off = (G - 1) / 2;
     const bases: THREE.Vector3[] = [];
     for (let x = 0; x < G; x++)
@@ -50,7 +59,7 @@ function XrdScene({ rate, glow, spin }: { rate: number; glow: number; spin: bool
   }, []);
 
   const coreGeo = useMemo(() => whiteColorAttr(new THREE.SphereGeometry(0.07, 14, 14)), []);
-  const haloGeo = useMemo(() => whiteColorAttr(new THREE.SphereGeometry(0.16, 14, 14)), []);
+  const haloGeo = useMemo(() => whiteColorAttr(new THREE.SphereGeometry(0.17, 14, 14)), []);
   const atomCore = useMemo(() => new THREE.MeshBasicMaterial({ color: 0x9be7ff }), []);
   const atomHalo = useMemo(
     () =>
@@ -78,136 +87,172 @@ function XrdScene({ rate, glow, spin }: { rate: number; glow: number; spin: bool
     if (haloInst.current) haloInst.current.instanceMatrix.needsUpdate = true;
   }, [bases, atomCount, dummy]);
 
-  const photonGeo = useMemo(() => new THREE.SphereGeometry(0.05, 10, 10), []);
-  const photonMat = useMemo(
+  // film band: two arc segments leaving gaps along the beam (±X) axis
+  const filmSegs = useMemo(() => {
+    const seg = (start: number) =>
+      new THREE.CylinderGeometry(FILM_R, FILM_R, FILM_H, 48, 1, true, start, Math.PI - 2 * GAP);
+    return [seg(Math.PI / 2 + GAP), seg((3 * Math.PI) / 2 + GAP)];
+  }, []);
+
+  // cones + their rim rings
+  const cones = useMemo(
     () =>
-      new THREE.MeshBasicMaterial({
-        color: 0xeaf4ff,
-        transparent: true,
-        opacity: 0.95,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
+      CONES.map((c) => {
+        const half = (c.half * Math.PI) / 180;
+        const dist = FILM_R + 0.18;
+        const H = dist * Math.cos(half);
+        const R = dist * Math.sin(half);
+        const g = new THREE.ConeGeometry(R, H, 56, 1, true);
+        g.translate(0, -H / 2, 0); // apex at origin, base toward -Y
+        return { geo: g, rim: ringInYZ(R), rotZ: c.dir === 1 ? Math.PI / 2 : -Math.PI / 2, x: c.dir * H, color: c.color };
       }),
+    []
+  );
+
+  const photonGeo = useMemo(() => new THREE.SphereGeometry(0.055, 10, 10), []);
+  const photonMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ color: 0xff5a5a, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }),
     []
   );
   const phOff = useMemo(() => Array.from({ length: PHOTONS }, (_, i) => i / PHOTONS), []);
   const phPrev = useRef<number[]>(Array(PHOTONS).fill(0));
-
-  const ringGeos = useMemo(() => RING_RADII.map((r) => circlePoints(r)), []);
-  const pulse = useRef(RING_RADII.map(() => 0));
+  const pulse = useRef(0);
+  const coreCol = useMemo(() => new THREE.Color(), []);
+  const haloCol = useMemo(() => new THREE.Color(), []);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
 
-    if (crystal.current && spin) {
-      crystal.current.rotation.y = t * 0.6;
-      crystal.current.rotation.x = Math.sin(t * 0.4) * 0.3;
-    }
+    // sample slowly tumbling (powder rotation)
+    if (crystal.current) crystal.current.rotation.y = t * 0.5;
 
-    // photons travel source -> crystal; on arrival, fire a diffraction pulse
-    let hit = 0;
+    // glow pulse — sine periodicity in brightness + hue
+    const s = 0.5 + 0.5 * Math.sin(t * glowFreq * 2.4);
+    const hue = 0.54 + 0.12 * Math.sin(t * glowFreq * 2.4);
+    coreCol.setHSL(hue, 0.85, 0.6 + 0.28 * s);
+    haloCol.setHSL(hue, 0.9, 0.45 + 0.2 * s);
+    atomCore.color.copy(coreCol);
+    atomHalo.color.copy(haloCol);
+    atomHalo.opacity = 0.28 + 0.4 * s;
+    if (crystal.current) crystal.current.scale.setScalar(1 + 0.07 * s);
+
+    // photons run the beam; firing a diffraction pulse as they cross the sample
     if (photonMesh.current) {
       for (let i = 0; i < PHOTONS; i++) {
-        const u = (t * rate * 0.25 + phOff[i]) % 1;
-        if (phPrev.current[i] > 0.92 && u <= 0.92) hit++;
+        const u = (t * rate * 0.22 + phOff[i]) % 1;
+        const x = -BEAM_X + 2 * BEAM_X * u;
+        if (phPrev.current[i] < 0.5 && u >= 0.5) pulse.current = Math.min(2, pulse.current + 0.8);
         phPrev.current[i] = u;
-        const x = BEAM_X0 * (1 - u);
         dummy.position.set(x, 0, 0);
-        dummy.scale.setScalar(1);
+        dummy.scale.setScalar(Math.abs(x) < 0.3 ? 1.6 : 1);
         dummy.updateMatrix();
         photonMesh.current.setMatrixAt(i, dummy.matrix);
       }
       photonMesh.current.instanceMatrix.needsUpdate = true;
     }
-
-    // diffraction-ring pulse cascades outward from the center
-    const p = pulse.current;
-    if (hit > 0) p[0] = Math.min(2, p[0] + 0.9 * hit);
-    for (let k = p.length - 1; k > 0; k--) p[k] += (p[k - 1] - p[k]) * 0.18;
-    for (let k = 0; k < p.length; k++) p[k] *= 0.94;
-    for (let k = 0; k < ringMats.current.length; k++) {
-      const m = ringMats.current[k];
-      if (m) m.opacity = Math.min(1, 0.18 + p[k] * glow);
-    }
-    if (directSpot.current) {
-      const mm = directSpot.current.material as THREE.MeshBasicMaterial;
-      mm.opacity = 0.5 + 0.5 * (0.5 + 0.5 * Math.sin(t * 6));
+    pulse.current *= 0.93;
+    const fl = pulse.current;
+    for (let k = 0; k < coneMats.current.length; k++) {
+      if (coneMats.current[k]) coneMats.current[k].opacity = 0.16 + fl * 0.12;
+      if (rimMats.current[k]) rimMats.current[k].opacity = Math.min(1, 0.45 + fl * 0.5);
     }
   });
 
-  const beamLen = -BEAM_X0;
   return (
     <group>
-      {/* incoming X-ray beam */}
-      <mesh position={[BEAM_X0 / 2, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.025, 0.025, beamLen, 12, 1, true]} />
-        <meshBasicMaterial color={0xbcd6ff} transparent opacity={0.25} blending={THREE.AdditiveBlending} depthWrite={false} />
+      {/* incoming + outgoing X-ray beam (fixed in the lab frame) */}
+      <mesh position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.022, 0.022, BEAM_X * 2, 12, 1, true]} />
+        <meshBasicMaterial color={0xff4d4d} transparent opacity={0.4} blending={THREE.AdditiveBlending} depthWrite={false} />
       </mesh>
       <instancedMesh ref={photonMesh} args={[photonGeo, photonMat, PHOTONS]} />
 
-      {/* spinning crystal sample */}
+      {/* powder sample */}
       <group ref={crystal}>
         <instancedMesh ref={coreInst} args={[coreGeo, atomCore, atomCount]} />
         <instancedMesh ref={haloInst} args={[haloGeo, atomHalo, atomCount]} />
       </group>
 
-      {/* detector with Debye-Scherrer rings */}
-      <group position={[0, 0, DET_Z]}>
-        <mesh>
-          <circleGeometry args={[1.9, 64]} />
-          <meshBasicMaterial color={0x0b1020} transparent opacity={0.55} />
-        </mesh>
-        {ringGeos.map((g, k) => (
-          <lineLoop key={k} geometry={g}>
+      {/* Debye-Scherrer cones + rim rings */}
+      {cones.map((c, k) => (
+        <group key={k}>
+          <mesh geometry={c.geo} rotation={[0, 0, c.rotZ]}>
+            <meshBasicMaterial
+              ref={(m: THREE.MeshBasicMaterial | null) => {
+                if (m) coneMats.current[k] = m;
+              }}
+              color={c.color}
+              transparent
+              opacity={0.16}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+          <lineLoop geometry={c.rim} position={[c.x, 0, 0]}>
             <lineBasicMaterial
               ref={(m: THREE.LineBasicMaterial | null) => {
-                if (m) ringMats.current[k] = m;
+                if (m) rimMats.current[k] = m;
               }}
-              color={RING_COLOR}
+              color={c.color}
               transparent
-              opacity={0.18}
+              opacity={0.45}
               blending={THREE.AdditiveBlending}
               depthWrite={false}
             />
           </lineLoop>
-        ))}
-        {/* direct (undiffracted) beam spot */}
-        <mesh ref={directSpot}>
-          <circleGeometry args={[0.08, 20]} />
-          <meshBasicMaterial color={0xffffff} transparent opacity={0.8} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </group>
+      ))}
+
+      {/* cylindrical film with entrance / exit gaps */}
+      {filmSegs.map((g, k) => (
+        <mesh key={k} geometry={g}>
+          <meshStandardMaterial
+            color={0xcfd6e2}
+            roughness={0.85}
+            metalness={0.05}
+            emissive={0x223049}
+            emissiveIntensity={0.25}
+            transparent
+            opacity={0.5}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
         </mesh>
-      </group>
+      ))}
     </group>
   );
 }
 
-function PatternOverlay() {
-  // 2θ peak positions roughly tied to the ring radii
-  const peaks = [
-    { x: 60, h: 70 },
-    { x: 104, h: 95 },
-    { x: 150, h: 48 },
-    { x: 196, h: 62 },
-    { x: 232, h: 30 },
-  ];
+function FilmStripOverlay() {
+  // unrolled film: exit (2θ=0) at the ends, entrance (2θ=180) at the centre
+  const W = 280;
+  const cx = W / 2 + 12;
+  const marks = CONES.map((c) => ({
+    color: c.color,
+    // forward cones land near the exit ends, back-scatter near the centre
+    off: (c.dir === 1 ? (1 - c.half / 90) : (c.half / 90)) * 110,
+  }));
   return (
-    <svg width={260} height={130} className="block">
-      <line x1={24} y1={108} x2={250} y2={108} stroke="#475569" strokeWidth={1} />
-      <line x1={24} y1={12} x2={24} y2={108} stroke="#475569" strokeWidth={1} />
-      <text x={20} y={10} fill="#94a3b8" fontSize={9} textAnchor="end">I</text>
-      <text x={252} y={120} fill="#94a3b8" fontSize={9} textAnchor="end">2θ</text>
-      {peaks.map((p, i) => (
-        <line key={i} x1={p.x} y1={108} x2={p.x} y2={108 - p.h} stroke="#ffb15a" strokeWidth={2.5} />
+    <svg width={W + 24} height={70} className="block">
+      <rect x={12} y={18} width={W} height={28} fill="#cfd6e2" opacity={0.14} stroke="#475569" strokeWidth={1} rx={3} />
+      <line x1={cx} y1={14} x2={cx} y2={50} stroke="#64748b" strokeWidth={1} strokeDasharray="3 3" />
+      {marks.map((m, i) => (
+        <g key={i}>
+          <path d={`M ${cx + m.off} 19 q 4 13 0 26`} stroke={`#${m.color.toString(16).padStart(6, "0")}`} strokeWidth={2.5} fill="none" />
+          <path d={`M ${cx - m.off} 19 q -4 13 0 26`} stroke={`#${m.color.toString(16).padStart(6, "0")}`} strokeWidth={2.5} fill="none" />
+        </g>
       ))}
+      <text x={cx} y={64} fill="#94a3b8" fontSize={8} textAnchor="middle">entrance 2θ=180°</text>
+      <text x={20} y={64} fill="#94a3b8" fontSize={8} textAnchor="start">exit 0°</text>
     </svg>
   );
 }
 
 export default function CharacterizationAsset() {
   const [rate, setRate] = useState(1);
-  const [glow, setGlow] = useState(1);
+  const [glowFreq, setGlowFreq] = useState(1.2);
   const [spin, setSpin] = useState(true);
-  const [showPattern, setShowPattern] = useState(true);
+  const [showFilm, setShowFilm] = useState(true);
 
   const btn = (active: boolean) =>
     `px-3 py-1 rounded-md text-xs transition ${
@@ -216,17 +261,18 @@ export default function CharacterizationAsset() {
 
   return (
     <>
-      <Canvas className="absolute inset-0" camera={{ position: [0.6, 1.0, 4.6], fov: 50 }} dpr={[1, 2]}>
+      <Canvas className="absolute inset-0" camera={{ position: [3.4, 2.0, 4.2], fov: 50 }} dpr={[1, 2]}>
         <color attach="background" args={["#06070d"]} />
-        <ambientLight intensity={0.5} />
+        <ambientLight intensity={0.6} />
+        <directionalLight position={[3, 5, 4]} intensity={0.6} />
         <pointLight position={[2, 3, 3]} intensity={0.5} color={0x88aaff} />
-        <XrdScene rate={rate} glow={glow} spin={spin} />
-        <OrbitControls enablePan={false} enableZoom minDistance={3} maxDistance={12} target={[0, 0, -0.5]} />
+        <XrdScene rate={rate} glowFreq={glowFreq} />
+        <OrbitControls enablePan={false} enableZoom autoRotate={spin} autoRotateSpeed={1.1} minDistance={3} maxDistance={13} />
       </Canvas>
 
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute bottom-5 left-5 flex flex-col gap-3">
-          <div className="text-sm text-slate-300">Characterization (XRD) — diffract a sample into a pattern</div>
+          <div className="text-sm text-slate-300">Characterization (XRD) — Debye-Scherrer powder camera</div>
           <div className="pointer-events-auto inline-flex flex-col gap-3 rounded-xl border border-white/10 bg-[rgba(8,10,18,0.7)] p-4 backdrop-blur-md">
             <div className="flex items-center gap-2">
               <span className="w-20 text-xs text-slate-400">beam</span>
@@ -242,22 +288,22 @@ export default function CharacterizationAsset() {
               <span className="text-[11px] tabular-nums text-slate-500">{rate.toFixed(2)}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-20 text-xs text-slate-400">ring glow</span>
+              <span className="w-20 text-xs text-slate-400">glow freq</span>
               <input
                 type="range"
-                min={0}
-                max={2}
+                min={0.1}
+                max={4}
                 step={0.05}
-                value={glow}
-                onChange={(e) => setGlow(parseFloat(e.target.value))}
+                value={glowFreq}
+                onChange={(e) => setGlowFreq(parseFloat(e.target.value))}
                 className="w-36 accent-sky-400"
               />
-              <span className="text-[11px] tabular-nums text-slate-500">{glow.toFixed(2)}</span>
+              <span className="text-[11px] tabular-nums text-slate-500">{glowFreq.toFixed(2)}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-20 text-xs text-slate-400">pattern</span>
-              <button className={btn(showPattern)} onClick={() => setShowPattern((s) => !s)}>
-                {showPattern ? "on" : "off"}
+              <span className="w-20 text-xs text-slate-400">film strip</span>
+              <button className={btn(showFilm)} onClick={() => setShowFilm((s) => !s)}>
+                {showFilm ? "on" : "off"}
               </button>
             </div>
             <div className="flex items-center gap-2">
@@ -269,10 +315,10 @@ export default function CharacterizationAsset() {
           </div>
         </div>
 
-        {showPattern && (
+        {showFilm && (
           <div className="absolute bottom-5 right-5 rounded-xl border border-white/10 bg-[rgba(8,10,18,0.7)] p-3 backdrop-blur-md">
-            <div className="mb-1 text-[11px] uppercase tracking-widest text-amber-300/80">diffraction pattern</div>
-            <PatternOverlay />
+            <div className="mb-1 text-[11px] uppercase tracking-widest text-amber-300/80">film readout</div>
+            <FilmStripOverlay />
           </div>
         )}
       </div>
