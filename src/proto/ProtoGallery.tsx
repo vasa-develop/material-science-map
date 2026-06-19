@@ -15,6 +15,7 @@ import MdOrbitalAsset from "./MdOrbitalAsset";
 import MdProbeAsset from "./MdProbeAsset";
 import MlipAsset from "./MlipAsset";
 import Orbital2sAsset from "./Orbital2sAsset";
+import PredictiveAsset from "./PredictiveAsset";
 import SdlAsset from "./SdlAsset";
 import ThinFilmAsset from "./ThinFilmAsset";
 
@@ -39,6 +40,7 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "crucible", label: "Bulk · crucible", Comp: CrucibleAsset },
   { id: "thinfilm", label: "Precision · thin-film", Comp: ThinFilmAsset },
   { id: "hte", label: "HTE · well-plate", Comp: HteAsset },
+  { id: "predictive", label: "Predictive synthesis · pathway", Comp: PredictiveAsset },
 ];
 
 export default function ProtoGallery() {
