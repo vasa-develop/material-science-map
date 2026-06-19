@@ -33,3 +33,44 @@ body {
   pointer-events: none;
   z-index: 0;
 }
+
+/* ambient FX */
+@keyframes fxScan {
+  0% {
+    transform: translateY(-20%);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.5;
+  }
+  90% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(120vh);
+    opacity: 0;
+  }
+}
+
+.fx-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 140px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(125, 211, 252, 0.06) 45%,
+    rgba(125, 211, 252, 0.12) 50%,
+    rgba(125, 211, 252, 0.06) 55%,
+    transparent
+  );
+  mix-blend-mode: screen;
+  animation: fxScan 7s linear infinite;
+}
+
+.fx-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 120% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}

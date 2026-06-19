@@ -3,12 +3,16 @@ import { Routes, Route, useNavigate, useParams } from "react-router-dom";
 import { ROOT } from "./data/map";
 import { indexTree, pathTo } from "./lib/tree";
 import ZoomStage from "./components/ZoomStage";
+import PixiStage from "./components/PixiStage";
+import ProtoGallery from "./proto/ProtoGallery";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Explorer />} />
       <Route path="/n/:id" element={<Explorer />} />
+      <Route path="/pixi" element={<PixiStage />} />
+      <Route path="/proto" element={<ProtoGallery />} />
     </Routes>
   );
 }

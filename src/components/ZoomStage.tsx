@@ -1,5 +1,15 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { useMemo } from "react";
+import {
+  AnimatePresence,
+  motion,
+  useMotionValue,
+  useSpring,
+} from "framer-motion";
 import type { MapNode, Rect } from "../data/types";
+import LivingCanvas from "./LivingCanvas";
+
+/** Scenes that use the real-time "living" canvas (effects + artwork hover-glow). */
+const LIVING_SCENES = new Set(["root"]);
 
 interface ZoomStageProps {
   node: MapNode;
@@ -43,6 +53,13 @@ const artVariants = {
       : { opacity: 0, scale: c.direction >= 0 ? 1.08 : 0.92, x: "0%", y: "0%" },
 };
 
+// fade in fast / out slow so the two scenes overlap during the zoom -> reads as one push-in
+const ZOOM_TRANSITION = {
+  duration: 0.9,
+  ease: EASE,
+  opacity: { duration: 0.55, ease: "easeOut" as const },
+};
+
 export default function ZoomStage({
   node,
   path,
@@ -64,13 +81,20 @@ export default function ZoomStage({
           initial="enter"
           animate="center"
           exit="exit"
-          transition={{ duration: 0.75, ease: EASE }}
+          transition={ZOOM_TRANSITION}
         >
           <SceneArt node={node} onNavigate={onNavigate} />
         </motion.div>
       </AnimatePresence>
 
-      {/* screen-fixed HUD overlay (does not zoom) */}
+      {/* ambient FX (screen-fixed, stays put during zoom) */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <ParticleField />
+        <div className="fx-scan" />
+        <div className="fx-vignette" />
+      </div>
+
+      {/* HUD overlay */}
       <div className="pointer-events-none absolute inset-0 flex flex-col p-4 sm:p-6">
         <div className="pointer-events-auto">
           <Breadcrumbs path={path} onNavigate={onNavigate} />
@@ -82,7 +106,7 @@ export default function ZoomStage({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            transition={{ duration: 0.35, ease: EASE, delay: 0.15 }}
+            transition={{ duration: 0.35, ease: EASE, delay: 0.25 }}
           >
             <OverlayPanels node={node} onNavigate={onNavigate} />
           </motion.div>
@@ -100,47 +124,84 @@ function SceneArt({
   onNavigate: (id: string) => void;
 }) {
   const accent = node.accent ?? "#38bdf8";
-  return (
-    <div className="absolute inset-0">
-      {node.image ? (
-        <img
-          src={node.image}
-          alt={node.title}
-          className="absolute inset-0 h-full w-full object-cover"
-          draggable={false}
-        />
-      ) : (
-        <div
-          className="absolute inset-0"
-          style={{
-            background: `radial-gradient(60% 60% at 50% 40%, ${accent}22, transparent 70%), linear-gradient(180deg, #0a0f1e, #05060c)`,
-          }}
-        >
-          <div
-            className="absolute inset-0 opacity-[0.5]"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px)",
-              backgroundSize: "40px 40px",
-            }}
-          />
-        </div>
-      )}
+  const living = LIVING_SCENES.has(node.id);
 
-      {/* hotspots for children that declare a position in this scene */}
-      {node.image &&
-        node.children?.map(
-          (c) =>
-            c.originInParent && (
-              <Hotspot
-                key={c.id}
-                rect={c.originInParent}
-                label={c.title}
-                accent={c.accent ?? accent}
-                onClick={() => onNavigate(c.id)}
+  // pointer parallax
+  const px = useSpring(useMotionValue(0), { stiffness: 60, damping: 18 });
+  const py = useSpring(useMotionValue(0), { stiffness: 60, damping: 18 });
+  const onMove = (e: React.MouseEvent) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    px.set(((e.clientX - r.left) / r.width - 0.5) * -1.6);
+    py.set(((e.clientY - r.top) / r.height - 0.5) * -1.6);
+  };
+  const reset = () => {
+    px.set(0);
+    py.set(0);
+  };
+
+  return (
+    <div
+      className="absolute inset-0 overflow-hidden"
+      onMouseMove={onMove}
+      onMouseLeave={reset}
+    >
+      {/* parallax wrapper */}
+      <motion.div className="absolute inset-0" style={{ x: px, y: py }}>
+        {/* ken-burns wrapper (image + hotspots move together, so hotspots stay aligned) */}
+        <motion.div
+          className="absolute inset-0"
+          animate={{
+            scale: [1.05, 1.09, 1.05],
+            x: ["0%", "-0.8%", "0%"],
+            y: ["0%", "0.6%", "0%"],
+          }}
+          transition={{ duration: 34, ease: "easeInOut", repeat: Infinity }}
+        >
+          {node.image ? (
+            <img
+              src={node.image}
+              alt={node.title}
+              className="absolute inset-0 h-full w-full object-cover"
+              draggable={false}
+            />
+          ) : (
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `radial-gradient(60% 60% at 50% 40%, ${accent}22, transparent 70%), linear-gradient(180deg, #0a0f1e, #05060c)`,
+              }}
+            >
+              <div
+                className="absolute inset-0 opacity-[0.5]"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px)",
+                  backgroundSize: "40px 40px",
+                }}
               />
-            )
-        )}
+            </div>
+          )}
+
+          {node.image && living && (
+            <LivingCanvas node={node} onNavigate={onNavigate} />
+          )}
+
+          {node.image &&
+            !living &&
+            node.children?.map(
+              (c) =>
+                c.originInParent && (
+                  <Hotspot
+                    key={c.id}
+                    rect={c.originInParent}
+                    label={c.title}
+                    accent={c.accent ?? accent}
+                    onClick={() => onNavigate(c.id)}
+                  />
+                )
+            )}
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
@@ -167,9 +228,14 @@ function Hotspot({
         height: `${rect.h * 100}%`,
       }}
     >
-      <span
-        className="absolute inset-0 rounded-2xl border opacity-25 transition duration-300 group-hover:opacity-100"
+      <motion.span
+        className="absolute inset-0 rounded-2xl border"
         style={{ borderColor: accent, boxShadow: `0 0 28px ${accent}aa, inset 0 0 24px ${accent}33` }}
+        animate={{ opacity: [0.18, 0.4, 0.18] }}
+        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <span className="absolute inset-0 rounded-2xl border border-transparent opacity-0 transition duration-300 group-hover:opacity-100"
+        style={{ borderColor: accent, boxShadow: `0 0 40px ${accent}, inset 0 0 30px ${accent}55` }}
       />
       <span
         className="absolute left-1/2 top-2 -translate-x-1/2 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider opacity-0 backdrop-blur-sm transition duration-300 group-hover:opacity-100"
@@ -178,6 +244,43 @@ function Hotspot({
         {label} →
       </span>
     </button>
+  );
+}
+
+interface Particle {
+  left: number;
+  top: number;
+  size: number;
+  dur: number;
+  delay: number;
+  drift: number;
+}
+
+function ParticleField() {
+  const particles = useMemo<Particle[]>(
+    () =>
+      Array.from({ length: 28 }, () => ({
+        left: Math.random() * 100,
+        top: Math.random() * 100,
+        size: Math.random() * 2 + 1,
+        dur: Math.random() * 8 + 8,
+        delay: Math.random() * 8,
+        drift: Math.random() * 30 + 20,
+      })),
+    []
+  );
+  return (
+    <div className="absolute inset-0 mix-blend-screen">
+      {particles.map((p, i) => (
+        <motion.span
+          key={i}
+          className="absolute rounded-full bg-sky-300"
+          style={{ left: `${p.left}%`, top: `${p.top}%`, width: p.size, height: p.size }}
+          animate={{ opacity: [0, 0.8, 0], y: [0, -p.drift] }}
+          transition={{ duration: p.dur, delay: p.delay, repeat: Infinity, ease: "easeInOut" }}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -201,11 +304,10 @@ function OverlayPanels({
 }) {
   const accent = node.accent ?? "#38bdf8";
   const hasFields = !!node.fields;
-  const showChildNav = !node.image && (node.children?.length ?? 0) > 0;
+  const children = node.children ?? [];
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      {/* title block */}
       <div
         className="pointer-events-auto inline-block rounded-xl border bg-[rgba(5,8,16,0.72)] px-4 py-2.5 backdrop-blur-md"
         style={{ borderColor: `${accent}55` }}
@@ -246,19 +348,23 @@ function OverlayPanels({
         </div>
       )}
 
-      {(node.links?.length || showChildNav) && (
-        <div className="pointer-events-auto mt-3 flex flex-wrap gap-2">
-          {showChildNav &&
-            node.children!.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => onNavigate(c.id)}
-                className="rounded-full border px-3 py-1.5 text-sm text-white transition hover:bg-white/10"
-                style={{ borderColor: `${(c.accent ?? accent)}77` }}
-              >
-                {c.title} →
-              </button>
-            ))}
+      {(children.length > 0 || node.links?.length) && (
+        <div className="pointer-events-auto mt-3 flex flex-wrap items-center gap-2">
+          {children.length > 0 && (
+            <span className="text-[11px] uppercase tracking-wider text-slate-500">
+              {node.image ? "Fly into" : "Inside"}:
+            </span>
+          )}
+          {children.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => onNavigate(c.id)}
+              className="rounded-full border px-3 py-1.5 text-sm text-white transition hover:bg-white/10"
+              style={{ borderColor: `${(c.accent ?? accent)}77` }}
+            >
+              {c.title} →
+            </button>
+          ))}
           {node.links?.map((l) => (
             <a
               key={l.label}
@@ -269,12 +375,6 @@ function OverlayPanels({
               {l.label}
             </a>
           ))}
-        </div>
-      )}
-
-      {node.image && (node.children?.length ?? 0) > 0 && (
-        <div className="mt-3 text-xs text-slate-500">
-          Hover the structures and click to fly in.
         </div>
       )}
     </div>

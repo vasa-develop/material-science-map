@@ -30,7 +30,7 @@ const dft: MapNode = {
       subtitle: "The accuracy knob",
       kind: "concept",
       accent: "#38bdf8",
-      originInParent: { x: 0.42, y: 0.28, w: 0.18, h: 0.42 },
+      originInParent: { x: 0.8, y: 0.1, w: 0.18, h: 0.13 },
       body: "DFT is exact in principle, but the exchange–correlation term must be approximated — and that single choice sets your error bars. The ladder climbs LDA → GGA (PBE) → meta-GGA (SCAN) → hybrids (HSE), trading cost for accuracy at each rung.",
     },
     {
@@ -39,7 +39,7 @@ const dft: MapNode = {
       subtitle: "Representing the wavefunction",
       kind: "concept",
       accent: "#38bdf8",
-      originInParent: { x: 0.15, y: 0.34, w: 0.22, h: 0.28 },
+      originInParent: { x: 0.1, y: 0.79, w: 0.18, h: 0.17 },
       body: "Periodic solids are usually solved in a plane-wave basis with pseudopotentials (VASP, Quantum ESPRESSO); molecules often use Gaussian bases. The plane-wave cutoff energy and k-point mesh are the knobs that trade accuracy for cost.",
     },
     {
@@ -48,7 +48,7 @@ const dft: MapNode = {
       subtitle: "Know the failure modes",
       kind: "leaf",
       accent: "#f87171",
-      originInParent: { x: 0.62, y: 0.34, w: 0.22, h: 0.3 },
+      originInParent: { x: 0.82, y: 0.78, w: 0.16, h: 0.18 },
       body: "Strongly-correlated systems, van der Waals, band gaps, excited states and finite-temperature/entropy effects are hard or wrong by default. This is exactly why DFT data must be validated and why MLIPs and experiments stay in the loop.",
       links: [{ label: "Primer: DFT in one sitting (todo)", href: "#", kind: "primer" }],
     },
