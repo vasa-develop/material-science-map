@@ -1,5 +1,6 @@
 import { useState, type ComponentType } from "react";
 import CharacterizationAsset from "./CharacterizationAsset";
+import CrucibleAsset from "./CrucibleAsset";
 import DatabaseStackAsset from "./DatabaseStackAsset";
 import DatabasesAsset from "./DatabasesAsset";
 import DensityAsset from "./DensityAsset";
@@ -14,6 +15,7 @@ import MdProbeAsset from "./MdProbeAsset";
 import MlipAsset from "./MlipAsset";
 import Orbital2sAsset from "./Orbital2sAsset";
 import SdlAsset from "./SdlAsset";
+import ThinFilmAsset from "./ThinFilmAsset";
 
 /** A scratch gallery to author + review each node's 3D asset in isolation. */
 const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
@@ -33,6 +35,8 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "database-stack", label: "Databases · cylinder", Comp: DatabaseStackAsset },
   { id: "xrd", label: "Characterization · XRD", Comp: CharacterizationAsset },
   { id: "sdl", label: "Self-driving lab · loop", Comp: SdlAsset },
+  { id: "crucible", label: "Bulk · crucible", Comp: CrucibleAsset },
+  { id: "thinfilm", label: "Precision · thin-film", Comp: ThinFilmAsset },
 ];
 
 export default function ProtoGallery() {
