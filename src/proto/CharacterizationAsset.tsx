@@ -39,7 +39,7 @@ function whiteColorAttr(g: THREE.BufferGeometry) {
   return g;
 }
 
-function XrdScene({ rate, glowFreq }: { rate: number; glowFreq: number }) {
+function XrdScene({ rate, glowFreq, sample }: { rate: number; glowFreq: number; sample: "lattice" | "chunk" }) {
   const crystal = useRef<THREE.Group>(null);
   const photonMesh = useRef<THREE.InstancedMesh>(null);
   const coneMats = useRef<THREE.MeshBasicMaterial[]>([]);
@@ -76,16 +76,67 @@ function XrdScene({ rate, glowFreq }: { rate: number; glowFreq: number }) {
   const haloInst = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
+  // cohesive chunk: small faceted blocks packed into a rough sphere
+  const blocks = useMemo(() => {
+    const out: { p: THREE.Vector3; s: number; rx: number; ry: number; rz: number }[] = [];
+    const N = 42;
+    let seed = 7;
+    const rnd = () => {
+      seed = (seed * 9301 + 49297) % 233280;
+      return seed / 233280;
+    };
+    for (let i = 0; i < N; i++) {
+      // random point in a sphere, biased outward so the cluster reads as a solid blob
+      const u = rnd() * 2 - 1;
+      const phi = rnd() * Math.PI * 2;
+      const sp = Math.sqrt(1 - u * u);
+      const r = 0.42 * Math.cbrt(rnd());
+      out.push({
+        p: new THREE.Vector3(r * sp * Math.cos(phi), r * sp * Math.sin(phi), r * u),
+        s: 0.1 + rnd() * 0.14,
+        rx: rnd() * Math.PI,
+        ry: rnd() * Math.PI,
+        rz: rnd() * Math.PI,
+      });
+    }
+    return out;
+  }, []);
+  const blockGeo = useMemo(() => new THREE.IcosahedronGeometry(1, 0), []);
+  const blockMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: 0xc6efe0,
+        flatShading: true,
+        roughness: 0.45,
+        metalness: 0.06,
+        emissive: 0x2f6f5a,
+        emissiveIntensity: 0.3,
+      }),
+    []
+  );
+  const blockInst = useRef<THREE.InstancedMesh>(null);
+
   useLayoutEffect(() => {
     for (let i = 0; i < atomCount; i++) {
       dummy.position.copy(bases[i]);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.setScalar(1);
       dummy.updateMatrix();
       coreInst.current?.setMatrixAt(i, dummy.matrix);
       haloInst.current?.setMatrixAt(i, dummy.matrix);
     }
     if (coreInst.current) coreInst.current.instanceMatrix.needsUpdate = true;
     if (haloInst.current) haloInst.current.instanceMatrix.needsUpdate = true;
-  }, [bases, atomCount, dummy]);
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i];
+      dummy.position.copy(b.p);
+      dummy.rotation.set(b.rx, b.ry, b.rz);
+      dummy.scale.setScalar(b.s);
+      dummy.updateMatrix();
+      blockInst.current?.setMatrixAt(i, dummy.matrix);
+    }
+    if (blockInst.current) blockInst.current.instanceMatrix.needsUpdate = true;
+  }, [bases, atomCount, blocks, dummy]);
 
   // film band: two arc segments leaving gaps along the beam (±X) axis
   const filmSegs = useMemo(() => {
@@ -134,6 +185,8 @@ function XrdScene({ rate, glowFreq }: { rate: number; glowFreq: number }) {
     atomCore.color.copy(coreCol);
     atomHalo.color.copy(haloCol);
     atomHalo.opacity = 0.28 + 0.4 * s;
+    blockMat.emissive.setHSL(hue, 0.7, 0.4 + 0.18 * s);
+    blockMat.emissiveIntensity = 0.18 + 0.5 * s;
     if (crystal.current) crystal.current.scale.setScalar(1 + 0.07 * s);
 
     // photons run the beam; firing a diffraction pulse as they cross the sample
@@ -167,10 +220,13 @@ function XrdScene({ rate, glowFreq }: { rate: number; glowFreq: number }) {
       </mesh>
       <instancedMesh ref={photonMesh} args={[photonGeo, photonMat, PHOTONS]} />
 
-      {/* powder sample */}
+      {/* powder sample — lattice of glow probes or a cohesive chunk of blocks */}
       <group ref={crystal}>
-        <instancedMesh ref={coreInst} args={[coreGeo, atomCore, atomCount]} />
-        <instancedMesh ref={haloInst} args={[haloGeo, atomHalo, atomCount]} />
+        <group visible={sample === "lattice"}>
+          <instancedMesh ref={coreInst} args={[coreGeo, atomCore, atomCount]} />
+          <instancedMesh ref={haloInst} args={[haloGeo, atomHalo, atomCount]} />
+        </group>
+        <instancedMesh ref={blockInst} args={[blockGeo, blockMat, blocks.length]} visible={sample === "chunk"} />
       </group>
 
       {/* Debye-Scherrer cones + rim rings */}
@@ -253,6 +309,7 @@ export default function CharacterizationAsset() {
   const [glowFreq, setGlowFreq] = useState(1.2);
   const [spin, setSpin] = useState(true);
   const [showFilm, setShowFilm] = useState(true);
+  const [sample, setSample] = useState<"lattice" | "chunk">("lattice");
 
   const btn = (active: boolean) =>
     `px-3 py-1 rounded-md text-xs transition ${
@@ -266,7 +323,7 @@ export default function CharacterizationAsset() {
         <ambientLight intensity={0.6} />
         <directionalLight position={[3, 5, 4]} intensity={0.6} />
         <pointLight position={[2, 3, 3]} intensity={0.5} color={0x88aaff} />
-        <XrdScene rate={rate} glowFreq={glowFreq} />
+        <XrdScene rate={rate} glowFreq={glowFreq} sample={sample} />
         <OrbitControls enablePan={false} enableZoom autoRotate={spin} autoRotateSpeed={1.1} minDistance={3} maxDistance={13} />
       </Canvas>
 
@@ -299,6 +356,15 @@ export default function CharacterizationAsset() {
                 className="w-36 accent-sky-400"
               />
               <span className="text-[11px] tabular-nums text-slate-500">{glowFreq.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-xs text-slate-400">sample</span>
+              <button
+                className={btn(true)}
+                onClick={() => setSample((s) => (s === "lattice" ? "chunk" : "lattice"))}
+              >
+                {sample === "lattice" ? "lattice" : "crystal chunk"}
+              </button>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-20 text-xs text-slate-400">film strip</span>
