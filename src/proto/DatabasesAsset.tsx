@@ -29,11 +29,15 @@ function DataCrystal({
   activity,
   glow,
   spin,
+  shape,
+  retrieve,
 }: {
   scan: number;
   activity: number;
   glow: number;
   spin: boolean;
+  shape: "cubes" | "cards";
+  retrieve: "pop" | "results";
 }) {
   const group = useRef<THREE.Group>(null);
   const meshStd = useRef<THREE.InstancedMesh>(null);
@@ -57,11 +61,19 @@ function DataCrystal({
   }, []);
 
   const geo = useMemo(() => {
-    const g = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+    const g =
+      shape === "cards"
+        ? new THREE.BoxGeometry(0.28, 0.28, 0.04)
+        : new THREE.BoxGeometry(0.15, 0.15, 0.15);
     const n = g.attributes.position.count;
     g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(n * 3).fill(1), 3));
     return g;
-  }, []);
+  }, [shape]);
+
+  const resultAnchor = useMemo(
+    () => new THREE.Vector3(extent * 1.5, extent * 1.3, extent * 1.7),
+    [extent]
+  );
   const matStd = useMemo(
     () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.15 }),
     []
@@ -100,9 +112,28 @@ function DataCrystal({
       const pop = Math.sin(rp * Math.PI); // 0..1..0
 
       const d = dirs[i];
-      const lift = pop * 0.55;
-      dummy.position.set(b.x + d.x * lift, b.y + d.y * lift, b.z + d.z * lift);
-      dummy.rotation.set(t * 0.2 + i, t * 0.15 + i, 0);
+      let px: number;
+      let py: number;
+      let pz: number;
+      if (retrieve === "results") {
+        px = b.x + (resultAnchor.x - b.x) * pop;
+        py = b.y + (resultAnchor.y - b.y) * pop;
+        pz = b.z + (resultAnchor.z - b.z) * pop;
+      } else {
+        const lift = pop * 0.55;
+        px = b.x + d.x * lift;
+        py = b.y + d.y * lift;
+        pz = b.z + d.z * lift;
+      }
+      dummy.position.set(px, py, pz);
+      if (shape === "cards") {
+        dummy.rotation.set(0, 0, 0);
+        dummy.up.set(0, 1, 0);
+        dummy.lookAt(px + d.x, py + d.y, pz + d.z); // face outward
+      } else {
+        dummy.quaternion.identity();
+        dummy.rotation.set(t * 0.2 + i, t * 0.15 + i, 0);
+      }
       dummy.scale.setScalar(1 + 0.35 * hs + 0.8 * pop);
       dummy.updateMatrix();
       meshStd.current.setMatrixAt(i, dummy.matrix);
@@ -138,6 +169,9 @@ export default function DatabasesAsset() {
   const [activity, setActivity] = useState(1);
   const [glow, setGlow] = useState(0.8);
   const [spin, setSpin] = useState(true);
+  const [shape, setShape] = useState<"cubes" | "cards">("cubes");
+  const [retrieve, setRetrieve] = useState<"pop" | "results">("pop");
+  const [hud, setHud] = useState(false);
 
   const btn = (active: boolean) =>
     `px-3 py-1 rounded-md text-xs transition ${
@@ -151,7 +185,15 @@ export default function DatabasesAsset() {
         <ambientLight intensity={0.5} />
         <directionalLight position={[4, 6, 3]} intensity={0.8} />
         <pointLight position={[-4, -2, -3]} intensity={0.4} color={0x88aaff} />
-        <DataCrystal scan={scan} activity={activity} glow={glow} spin={spin} />
+        <DataCrystal
+          key={shape}
+          scan={scan}
+          activity={activity}
+          glow={glow}
+          spin={spin}
+          shape={shape}
+          retrieve={retrieve}
+        />
         <OrbitControls enablePan={false} enableZoom minDistance={3.5} maxDistance={14} />
       </Canvas>
 
@@ -199,6 +241,30 @@ export default function DatabasesAsset() {
               <span className="text-[11px] tabular-nums text-slate-500">{glow.toFixed(2)}</span>
             </div>
             <div className="flex items-center gap-2">
+              <span className="w-20 text-xs text-slate-400">entries</span>
+              <button className={btn(shape === "cubes")} onClick={() => setShape("cubes")}>
+                cubes
+              </button>
+              <button className={btn(shape === "cards")} onClick={() => setShape("cards")}>
+                cards
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-xs text-slate-400">retrieve</span>
+              <button className={btn(retrieve === "pop")} onClick={() => setRetrieve("pop")}>
+                pop-out
+              </button>
+              <button className={btn(retrieve === "results")} onClick={() => setRetrieve("results")}>
+                to results
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-xs text-slate-400">HUD</span>
+              <button className={btn(hud)} onClick={() => setHud((h) => !h)}>
+                {hud ? "on" : "off"}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
               <span className="w-20 text-xs text-slate-400">spin</span>
               <button className={btn(spin)} onClick={() => setSpin((s) => !s)}>
                 {spin ? "on" : "off"}
@@ -206,6 +272,19 @@ export default function DatabasesAsset() {
             </div>
           </div>
         </div>
+
+        {hud && (
+          <div className="absolute right-5 top-5 rounded-xl border border-white/10 bg-[rgba(8,10,18,0.7)] px-4 py-3 backdrop-blur-md">
+            <div className="text-[11px] uppercase tracking-widest text-sky-300/80">Materials Project</div>
+            <div className="mt-1 font-mono text-2xl tabular-nums text-white">154,718</div>
+            <div className="text-[11px] text-slate-400">entries indexed</div>
+            <div className="mt-2 border-t border-white/10 pt-2 text-[11px] text-slate-400">
+              query <span className="text-amber-300">band-gap 1.1–1.7 eV</span>
+              <br />
+              <span className="text-emerald-300">37 hits</span> retrieved
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
