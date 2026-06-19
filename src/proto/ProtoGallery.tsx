@@ -7,6 +7,7 @@ import GenerativeAsset from "./GenerativeAsset";
 import GenerativeGemAsset from "./GenerativeGemAsset";
 import HtsAsset from "./HtsAsset";
 import HtsFormulaAsset from "./HtsFormulaAsset";
+import HtsFunnelAsset from "./HtsFunnelAsset";
 import MdAsset from "./MdAsset";
 import MdOrbitalAsset from "./MdOrbitalAsset";
 import MdProbeAsset from "./MdProbeAsset";
@@ -26,6 +27,7 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "generative-gem", label: "Generative · sparkle", Comp: GenerativeGemAsset },
   { id: "hts", label: "HTS · screening funnel", Comp: HtsAsset },
   { id: "hts-formula", label: "HTS · formulas → crystals", Comp: HtsFormulaAsset },
+  { id: "hts-funnel", label: "HTS · funnel filter", Comp: HtsFunnelAsset },
   { id: "databases", label: "Databases · data crystal", Comp: DatabasesAsset },
   { id: "database-stack", label: "Databases · cylinder", Comp: DatabaseStackAsset },
   { id: "xrd", label: "Characterization · XRD", Comp: CharacterizationAsset },
