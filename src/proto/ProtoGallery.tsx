@@ -1,4 +1,5 @@
 import { useState, type ComponentType } from "react";
+import DatabaseStackAsset from "./DatabaseStackAsset";
 import DatabasesAsset from "./DatabasesAsset";
 import DensityAsset from "./DensityAsset";
 import GenerativeAsset from "./GenerativeAsset";
@@ -23,6 +24,7 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "generative-gem", label: "Generative · sparkle", Comp: GenerativeGemAsset },
   { id: "hts", label: "HTS · screening funnel", Comp: HtsAsset },
   { id: "databases", label: "Databases · data crystal", Comp: DatabasesAsset },
+  { id: "database-stack", label: "Databases · cylinder", Comp: DatabaseStackAsset },
 ];
 
 export default function ProtoGallery() {
