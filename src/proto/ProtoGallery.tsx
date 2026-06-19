@@ -18,6 +18,7 @@ import MlipAsset from "./MlipAsset";
 import Orbital2sAsset from "./Orbital2sAsset";
 import PredictiveAsset from "./PredictiveAsset";
 import SdlAsset from "./SdlAsset";
+import SynthesisParamsAsset from "./SynthesisParamsAsset";
 import ThinFilmAsset from "./ThinFilmAsset";
 
 /** A scratch gallery to author + review each node's 3D asset in isolation. */
@@ -43,6 +44,7 @@ const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "hte", label: "HTE · well-plate", Comp: HteAsset },
   { id: "predictive", label: "Predictive synthesis · pathway", Comp: PredictiveAsset },
   { id: "literature", label: "Literature · dark data", Comp: LiteratureAsset },
+  { id: "params", label: "Synthesis parameters · gauges", Comp: SynthesisParamsAsset },
 ];
 
 export default function ProtoGallery() {
@@ -53,13 +55,13 @@ export default function ProtoGallery() {
     <div className="fixed inset-0 bg-[#06070d]">
       <Active />
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-4">
-        <div className="pointer-events-auto flex gap-1 rounded-full border border-white/10 bg-[rgba(8,10,18,0.72)] p-1 backdrop-blur-md">
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-3">
+        <div className="pointer-events-auto flex max-h-[42vh] max-w-[96vw] flex-wrap justify-center gap-1 overflow-y-auto rounded-2xl border border-white/10 bg-[rgba(8,10,18,0.78)] p-2 backdrop-blur-md">
           {ASSETS.map((a) => (
             <button
               key={a.id}
               onClick={() => setId(a.id)}
-              className={`rounded-full px-4 py-1.5 text-xs transition ${
+              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs transition ${
                 id === a.id ? "bg-white/15 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
