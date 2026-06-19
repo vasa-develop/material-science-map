@@ -16,19 +16,46 @@ const SCATTER_R = 2.6; // radius of the noise cloud
 const MAX_DELAY = 0.45; // per-atom stagger of assembly
 const SPECIES = [0xff9d4d, 0x5cc8ff]; // alternating cation / anion
 
+// element symbols per species (cation-ish warm / anion-ish cool)
+const SYMBOLS: [string[], string[]] = [
+  ["Na", "Li", "K", "Mg", "Ca", "Fe", "Ti", "Al"],
+  ["Cl", "O", "S", "N", "F", "Br"],
+];
+
 const smoother = (x: number) => {
   const c = Math.min(1, Math.max(0, x));
   return c * c * c * (c * (c * 6 - 15) + 10);
 };
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+
+function symbolTexture(text: string): THREE.Texture {
+  const S = 128;
+  const cv = document.createElement("canvas");
+  cv.width = S;
+  cv.height = S;
+  const ctx = cv.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "#ffffff";
+  ctx.shadowBlur = 14;
+  ctx.font = `bold 74px ui-sans-serif, system-ui, sans-serif`;
+  ctx.fillText(text, S / 2, S / 2 + 4);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.anisotropy = 4;
+  return tex;
+}
 
 function GenerativeCrystal({
   speed,
   spin,
   size,
+  elements,
 }: {
   speed: number;
   spin: boolean;
   size: number;
+  elements: boolean;
 }) {
   const group = useRef<THREE.Group>(null);
   const meshStd = useRef<THREE.InstancedMesh>(null);
@@ -103,6 +130,33 @@ function GenerativeCrystal({
 
   const initedColors = useRef(false);
 
+  // element-symbol sprites (one per atom) that morph into balls on assembly
+  const symbolSprites = useMemo(() => {
+    const cache = new Map<string, THREE.Texture>();
+    const tex = (s: string) => {
+      let tx = cache.get(s);
+      if (!tx) {
+        tx = symbolTexture(s);
+        cache.set(s, tx);
+      }
+      return tx;
+    };
+    const sprites: THREE.Sprite[] = [];
+    const tint = new THREE.Color();
+    for (let x = 0; x < GRID; x++)
+      for (let y = 0; y < GRID; y++)
+        for (let z = 0; z < GRID; z++) {
+          const sp = (x + y + z) % 2;
+          const set = SYMBOLS[sp];
+          const sym = set[(Math.random() * set.length) | 0];
+          const m = new THREE.SpriteMaterial({ map: tex(sym), transparent: true, depthWrite: false });
+          tint.set(SPECIES[sp]).lerp(new THREE.Color(0xffffff), 0.35);
+          m.color.copy(tint);
+          sprites.push(new THREE.Sprite(m));
+        }
+    return sprites;
+  }, []);
+
   useFrame((state) => {
     if (!meshStd.current || !meshGlow.current) return;
     const t = state.clock.elapsedTime;
@@ -130,11 +184,29 @@ function GenerativeCrystal({
       cur[i * 3] = x;
       cur[i * 3 + 1] = y;
       cur[i * 3 + 2] = z;
+
+      // in elements mode, the ball only emerges as the symbol resolves into it
+      const morphBall = elements ? smoother((p - 0.4) / 0.45) : 1;
       dummy.position.set(x, y, z);
-      dummy.scale.setScalar(size * (0.45 + 0.55 * p)); // atoms grow as they settle
+      dummy.scale.setScalar(size * (0.45 + 0.55 * p) * morphBall); // atoms grow as they settle
       dummy.updateMatrix();
       meshStd.current.setMatrixAt(i, dummy.matrix);
       meshGlow.current.setMatrixAt(i, dummy.matrix);
+
+      // element symbol: floats while scattered, fades as it becomes a ball
+      const sp = symbolSprites[i];
+      if (elements) {
+        const symA = 1 - smoother((p - 0.3) / 0.4);
+        sp.visible = symA > 0.02;
+        if (sp.visible) {
+          const ss = size * 0.85 * (0.85 + 0.15 * (1 - p));
+          sp.position.set(x, y, z);
+          sp.scale.set(ss, ss, 1);
+          sp.material.opacity = clamp01(symA);
+        }
+      } else if (sp.visible) {
+        sp.visible = false;
+      }
     }
     meshStd.current.instanceMatrix.needsUpdate = true;
     meshGlow.current.instanceMatrix.needsUpdate = true;
@@ -163,6 +235,9 @@ function GenerativeCrystal({
     <group ref={group}>
       <instancedMesh ref={meshStd} args={[geo, matStd, count]} />
       <instancedMesh ref={meshGlow} args={[geo, matGlow, count]} />
+      {symbolSprites.map((sp, i) => (
+        <primitive key={i} object={sp} visible={false} />
+      ))}
       <lineSegments>
         <bufferGeometry>
           <bufferAttribute ref={bondAttr} attach="attributes-position" args={[bondPos, 3]} />
@@ -184,6 +259,7 @@ export default function GenerativeAsset() {
   const [speed, setSpeed] = useState(0.6);
   const [spin, setSpin] = useState(true);
   const [size, setSize] = useState(1);
+  const [elements, setElements] = useState(false);
 
   const btn = (active: boolean) =>
     `px-3 py-1 rounded-md text-xs transition ${
@@ -197,7 +273,7 @@ export default function GenerativeAsset() {
         <ambientLight intensity={0.55} />
         <directionalLight position={[4, 6, 3]} intensity={0.85} />
         <pointLight position={[-4, -2, -3]} intensity={0.4} color={0x88aaff} />
-        <GenerativeCrystal speed={speed} spin={spin} size={size} />
+        <GenerativeCrystal speed={speed} spin={spin} size={size} elements={elements} />
         <OrbitControls enablePan={false} enableZoom minDistance={3.5} maxDistance={15} />
       </Canvas>
 
@@ -235,6 +311,12 @@ export default function GenerativeAsset() {
               <span className="w-20 text-xs text-slate-400">spin</span>
               <button className={btn(spin)} onClick={() => setSpin((s) => !s)}>
                 {spin ? "on" : "off"}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-xs text-slate-400">elements</span>
+              <button className={btn(elements)} onClick={() => setElements((s) => !s)}>
+                {elements ? "symbols → balls" : "off"}
               </button>
             </div>
           </div>
