@@ -476,6 +476,23 @@ function DatabaseStack({
   );
 }
 
+/** Content only (no lights/camera), for embedding as a node in the shared city. */
+export function DatabaseMapScene() {
+  const countEl = useRef<HTMLSpanElement | null>(null);
+  return (
+    <DatabaseStack
+      rate={1}
+      glow={1}
+      spin
+      itemType="crystals"
+      pulseTint={false}
+      showFill={false}
+      showLogos
+      countEl={countEl}
+    />
+  );
+}
+
 export default function DatabaseStackAsset() {
   const [rate, setRate] = useState(1);
   const [glow, setGlow] = useState(1);

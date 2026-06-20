@@ -270,6 +270,17 @@ function FormulaStream({
   );
 }
 
+/** Content only (no lights/camera), for embedding as a node in the shared city. */
+export function HtsFunnelMapScene() {
+  const pulseRef = useRef(0);
+  return (
+    <>
+      <FunnelBody spin pulseRef={pulseRef} />
+      <FormulaStream speed={0.16} size={1} pulseRef={pulseRef} />
+    </>
+  );
+}
+
 export default function HtsFunnelAsset() {
   const [speed, setSpeed] = useState(0.16);
   const [size, setSize] = useState(1);

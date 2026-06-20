@@ -301,6 +301,11 @@ function SdlScene({ speed, showLabel }: { speed: number; showLabel: boolean }) {
   );
 }
 
+/** Content only (no lights/camera), for embedding as a node in the shared city. */
+export function SdlMapScene() {
+  return <SdlScene speed={1} showLabel />;
+}
+
 export default function SdlAsset() {
   const [speed, setSpeed] = useState(1);
   const [spin, setSpin] = useState(true);

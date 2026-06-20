@@ -190,6 +190,11 @@ function DensityCloud({
   );
 }
 
+/** Lights + content only, for embedding as a node in the shared-canvas map. */
+export function DensityMapScene() {
+  return <DensityCloud preset="flower" palette="spectrum" spin pointSize={0.05} />;
+}
+
 export default function DensityAsset() {
   const [preset, setPreset] = useState("flower");
   const [palette, setPalette] = useState("spectrum");

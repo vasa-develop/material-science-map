@@ -187,6 +187,19 @@ function Crucible({ heat, speed, spin }: { heat: number; speed: number; spin: bo
   );
 }
 
+/**
+ * Content only (no ambient/directional), for embedding as a node in the shared
+ * city. Keeps a local warm point light so the dark crucible body still reads.
+ */
+export function CrucibleMapScene() {
+  return (
+    <>
+      <pointLight position={[0, 0.6, 0]} intensity={1.2} color={0xff8a3a} distance={6} />
+      <Crucible heat={1} speed={1} spin />
+    </>
+  );
+}
+
 export default function CrucibleAsset() {
   const [heat, setHeat] = useState(1);
   const [speed, setSpeed] = useState(1);

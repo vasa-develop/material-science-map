@@ -317,6 +317,11 @@ function FilmStripOverlay() {
   );
 }
 
+/** Content only (no lights/camera), for embedding as a node in the shared city. */
+export function CharacterizationMapScene() {
+  return <XrdScene rate={1} glowFreq={1.2} sample="lattice" filmOpacity={1} sampleSize={0.5} filmWidth={0.65} />;
+}
+
 export default function CharacterizationAsset() {
   const [rate, setRate] = useState(1);
   const [glowFreq, setGlowFreq] = useState(1.2);

@@ -255,6 +255,11 @@ function GenerativeCrystal({
   );
 }
 
+/** Content only (no lights/camera), for embedding as a node in the shared city. */
+export function GenerativeMapScene() {
+  return <GenerativeCrystal speed={0.6} spin size={1} elements={false} />;
+}
+
 export default function GenerativeAsset() {
   const [speed, setSpeed] = useState(0.6);
   const [spin, setSpin] = useState(true);

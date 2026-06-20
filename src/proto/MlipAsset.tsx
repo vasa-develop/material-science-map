@@ -146,6 +146,11 @@ function Landscape({ speed, spin, wire }: { speed: number; spin: boolean; wire: 
   );
 }
 
+/** Content only (no lights/camera), for embedding as a node in the shared city. */
+export function MlipMapScene() {
+  return <Landscape speed={1} spin wire />;
+}
+
 export default function MlipAsset() {
   const [speed, setSpeed] = useState(1);
   const [spin, setSpin] = useState(true);
