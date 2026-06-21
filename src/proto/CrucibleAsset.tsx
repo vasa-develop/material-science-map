@@ -10,7 +10,7 @@ import * as THREE from "three";
  * cycle repeats. Verb: melt, grow, cool. Warm palette to contrast discovery.
  */
 
-const POOL_Y = 0.32;
+const POOL_Y = 0.43;
 const EMBERS = 150;
 
 const smoother = (x: number) => {
@@ -166,7 +166,7 @@ function Crucible({ heat, speed, spin }: { heat: number; speed: number; spin: bo
 
       {/* molten pool */}
       <mesh position={[0, POOL_Y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.84, 48]} />
+        <circleGeometry args={[0.885, 48]} />
         <meshBasicMaterial ref={poolMat} color={0xffb24a} transparent opacity={0.85} />
       </mesh>
       <instancedMesh ref={blobs} args={[blobGeo, blobMat, NB]} />

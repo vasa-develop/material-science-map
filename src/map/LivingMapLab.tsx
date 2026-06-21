@@ -93,12 +93,443 @@ function glowTex(): THREE.Texture {
   return _glow;
 }
 
+// ── packet glyphs (prototype) ──────────────────────────────────────────────
+// Each leg of the loop carries a different payload. Drawn white on transparent
+// so the sprite color (the per-position accent gradient) tints them.
+//   candidate → predicted structure handed to synthesis (wireframe gem)
+//   material  → the synthesized sample handed to characterization (solid gem)
+//   data      → measured ground truth fed back to discovery (mini spectrum)
+type Glyph = "candidate" | "material" | "data";
+const _glyphTex: Partial<Record<Glyph, THREE.Texture>> = {};
+function glyphTex(kind: Glyph): THREE.Texture {
+  const cached = _glyphTex[kind];
+  if (cached) return cached;
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const x = c.getContext("2d")!;
+  x.clearRect(0, 0, 128, 128);
+  x.strokeStyle = "#ffffff";
+  x.fillStyle = "#ffffff";
+  x.lineJoin = "round";
+  x.lineCap = "round";
+
+  // cut-gem silhouette shared by candidate/material
+  const gem = () => {
+    x.beginPath();
+    x.moveTo(44, 32);
+    x.lineTo(84, 32);
+    x.lineTo(104, 54);
+    x.lineTo(64, 108);
+    x.lineTo(24, 54);
+    x.closePath();
+  };
+
+  if (kind === "candidate") {
+    x.lineWidth = 6;
+    gem();
+    x.stroke();
+    // facet lines for a wireframe read
+    x.lineWidth = 4;
+    x.beginPath();
+    x.moveTo(24, 54);
+    x.lineTo(104, 54);
+    x.moveTo(44, 32);
+    x.lineTo(64, 108);
+    x.moveTo(84, 32);
+    x.lineTo(64, 108);
+    x.stroke();
+  } else if (kind === "material") {
+    gem();
+    x.fill();
+    // darker facet creases so the solid gem reads faceted once tinted
+    x.strokeStyle = "rgba(0,0,0,0.22)";
+    x.lineWidth = 4;
+    x.beginPath();
+    x.moveTo(24, 54);
+    x.lineTo(104, 54);
+    x.moveTo(64, 54);
+    x.lineTo(64, 108);
+    x.stroke();
+  } else {
+    // mini spectrum / bar chart
+    const bars = [
+      [26, 58],
+      [48, 30],
+      [70, 74],
+      [92, 44],
+    ];
+    bars.forEach(([bx, h]) => {
+      x.beginPath();
+      // rounded-top bar from baseline 104 up by h, width 16
+      const w = 16;
+      const top = 104 - h;
+      x.moveTo(bx - w / 2, 104);
+      x.lineTo(bx - w / 2, top + 6);
+      x.quadraticCurveTo(bx - w / 2, top, bx, top);
+      x.quadraticCurveTo(bx + w / 2, top, bx + w / 2, top + 6);
+      x.lineTo(bx + w / 2, 104);
+      x.closePath();
+      x.fill();
+    });
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  _glyphTex[kind] = tex;
+  return tex;
+}
+
 function AutoSpin({ speed, children }: { speed: number; children: React.ReactNode }) {
   const ref = useRef<THREE.Group>(null);
   useFrame((state) => {
     if (ref.current) ref.current.rotation.y = state.clock.elapsedTime * speed;
   });
   return <group ref={ref}>{children}</group>;
+}
+
+// unit-cell edges reused by the 3D candidate packet
+const CELL_EDGES = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
+
+// neutral packet color used when the gradient tint is toggled off
+const NEUTRAL_PKT = new THREE.Color(0xbfe6ff);
+
+// deterministic faceted blocks for the crystal-chunk packet (mirrors the
+// chunk in CharacterizationAsset so the synthesized sample reads consistently)
+const CHUNK_BLOCKS = (() => {
+  const out: { p: [number, number, number]; s: number; rx: number; ry: number; rz: number }[] = [];
+  let seed = 7;
+  const rnd = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+  for (let i = 0; i < 26; i++) {
+    const u = rnd() * 2 - 1;
+    const phi = rnd() * Math.PI * 2;
+    const sp = Math.sqrt(1 - u * u);
+    const r = 0.62 * Math.cbrt(rnd());
+    out.push({
+      p: [r * sp * Math.cos(phi), r * sp * Math.sin(phi), r * u],
+      s: 0.16 + rnd() * 0.2,
+      rx: rnd() * Math.PI,
+      ry: rnd() * Math.PI,
+      rz: rnd() * Math.PI,
+    });
+  }
+  return out;
+})();
+
+// ---- data-packet (characterize→discover) variants ------------------------
+// the loop's return leg carries measured results / learnings; these are the
+// alternative ways to depict that payload, switchable from the lab panel.
+type DataGlyph = "rings" | "bars" | "card" | "trace" | "db" | "scatter";
+
+const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
+const DISK_GEO = new THREE.CylinderGeometry(0.62, 0.62, 0.16, 24);
+const DOT_GEO = new THREE.SphereGeometry(0.1, 10, 10);
+
+// spectrum bars: evenly spaced columns of varying height (mini bar chart)
+const BAR_HEIGHTS = [0.55, 1.0, 0.7, 1.3, 0.85, 0.45];
+const BAR_W = 0.16;
+const BAR_GAP = 0.26;
+
+// a peaked "spectrum trace" polyline (two gaussian-ish peaks over a baseline)
+const traceGeo = (() => {
+  const N = 40;
+  const pos = new Float32Array(N * 3);
+  const peak = (x: number, c: number, w: number, h: number) =>
+    h * Math.exp(-((x - c) * (x - c)) / (2 * w * w));
+  for (let i = 0; i < N; i++) {
+    const x = -1 + (2 * i) / (N - 1);
+    const y = -0.55 + peak(x, -0.35, 0.16, 1.0) + peak(x, 0.42, 0.1, 0.7) + 0.04 * Math.sin(x * 9);
+    pos[i * 3] = x;
+    pos[i * 3 + 1] = y;
+    pos[i * 3 + 2] = 0;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  return g;
+})();
+
+// a zig-zag mini plot drawn on the data card
+const cardPlotGeo = (() => {
+  const ys = [-0.18, 0.12, -0.05, 0.22, 0.0, 0.28];
+  const pos = new Float32Array(ys.length * 3);
+  ys.forEach((y, i) => {
+    pos[i * 3] = -0.5 + (i / (ys.length - 1)) * 1.0;
+    pos[i * 3 + 1] = y;
+    pos[i * 3 + 2] = 0.06;
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  return g;
+})();
+const cardPanelEdges = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.5, 1.05, 0.06));
+
+// scatter cloud of measured datapoints (deterministic)
+const SCATTER_PTS = (() => {
+  const out: [number, number, number][] = [];
+  let seed = 19;
+  const rnd = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+  for (let i = 0; i < 8; i++) {
+    const x = -0.8 + (i / 7) * 1.6;
+    const y = -0.55 + x * 0.55 + (rnd() - 0.5) * 0.45; // loose upward trend
+    out.push([x, y, (rnd() - 0.5) * 0.2]);
+  }
+  return out;
+})();
+// scatter fit line (the trend the datapoints feed)
+const scatterFitGeo = (() => {
+  const pos = new Float32Array(2 * 3);
+  pos.set([-0.85, -0.55 + -0.85 * 0.55, 0], 0);
+  pos.set([0.85, -0.55 + 0.85 * 0.55, 0], 3);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  return g;
+})();
+
+// ---- L0 polish prototypes (toggleable) -----------------------------------
+// number of comet puffs in each packet's trailing blaze
+const TRAIL_N = 7;
+
+// "balance heroes": per-region hero footprint + halo (size, rest opacity) so the
+// three stages read as equal peers and Discovery's halo stops bleeding outward.
+const BALANCED: Record<string, { heroScale: number; haloScale: number; haloRest: number }> = {
+  discover: { heroScale: 0.15, haloScale: 3.9, haloRest: 0.15 },
+  synthesis: { heroScale: 0.64, haloScale: 4.4, haloRest: 0.18 },
+  characterize: { heroScale: 0.32, haloScale: 5.9, haloRest: 0.4 },
+};
+
+// deterministic phase jitter so evenly-spaced packets stop reading as a "fence"
+const pktJitter = (si: number, k: number, K: number) => {
+  const r = Math.sin(si * 12.9898 + k * 78.233) * 43758.5453;
+  const f = r - Math.floor(r);
+  return (((k + (f - 0.5) * 0.7) / K) % 1 + 1) % 1;
+};
+
+/**
+ * 3D payload packet (prototype) — one per leg, slowly spinning, tinted by the
+ * per-position accent gradient. The mesh language encodes the payload's state:
+ *   candidate → holographic wireframe unit cell (predicted, in-silico)
+ *   material  → solid faceted crystal (the real synthesized sample)
+ *   data      → glowing diffraction rings (the measurement fed back)
+ */
+function Packet3D({
+  seg,
+  kind,
+  dimRef,
+  gradient,
+  sizeMul,
+  spin,
+  floatY,
+  offset = 0,
+  dataGlyph = "rings",
+  cellBoost = false,
+  trails = false,
+  trailLen = 1,
+  trailGlow = 0.7,
+}: {
+  seg: { a: THREE.Vector3; b: THREE.Vector3; ca: THREE.Color; cb: THREE.Color };
+  kind: Glyph;
+  dimRef: React.MutableRefObject<number>;
+  gradient: boolean;
+  sizeMul: number;
+  spin: number;
+  floatY: number;
+  offset?: number;
+  dataGlyph?: DataGlyph;
+  cellBoost?: boolean;
+  trails?: boolean;
+  trailLen?: number;
+  trailGlow?: number;
+}) {
+  const grp = useRef<THREE.Group>(null);
+  // payload (spinning meshes) lives in an inner group so the comet trail can
+  // stay aligned to the direction of travel instead of orbiting with the spin
+  const spinRef = useRef<THREE.Group>(null);
+  // flat data glyphs (trace/card) face the camera instead of spinning edge-on
+  const billboardRef = useRef<THREE.Group>(null);
+  const tmpQ = useMemo(() => new THREE.Quaternion(), []);
+  const col = useMemo(() => new THREE.Color(), []);
+  const white = useMemo(() => new THREE.Color(0xffffff), []);
+  // comet "blaze" puffs trailing behind the packet, oriented along the leg
+  const trailTex = useMemo(() => glowTex(), []);
+  const trailRefs = useRef<THREE.Sprite[]>([]);
+  const trailQuat = useMemo(() => {
+    const dir = seg.b.clone().sub(seg.a).normalize();
+    return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir);
+  }, [seg]);
+  const lineMat = useMemo(
+    () => new THREE.LineBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+    []
+  );
+  const glowMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+    []
+  );
+  const solidMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ flatShading: true, roughness: 0.32, metalness: 0.12, emissiveIntensity: 0.4 }),
+    []
+  );
+  // dark translucent backing for the "data card" variant
+  const panelMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5, depthWrite: false }),
+    []
+  );
+  const cornerGeo = useMemo(() => new THREE.SphereGeometry(0.12, 10, 10), []);
+  const blockGeo = useMemo(() => new THREE.IcosahedronGeometry(1, 0), []);
+  // polylines rendered as THREE.Line primitives (the <line> JSX tag collides
+  // with the SVG line element type, so we build the objects explicitly)
+  const traceLine = useMemo(() => new THREE.Line(traceGeo, lineMat), [lineMat]);
+  const traceLine2 = useMemo(() => {
+    const l = new THREE.Line(traceGeo, lineMat);
+    l.position.set(0, 0.012, 0);
+    return l;
+  }, [lineMat]);
+  const cardPlotLine = useMemo(() => new THREE.Line(cardPlotGeo, lineMat), [lineMat]);
+  const scatterFitLine = useMemo(() => new THREE.Line(scatterFitGeo, lineMat), [lineMat]);
+  const corners = useMemo(() => {
+    const o = 0.5;
+    const pts: [number, number, number][] = [];
+    for (const x of [-o, o]) for (const y of [-o, o]) for (const z of [-o, o]) pts.push([x, y, z]);
+    return pts;
+  }, []);
+  const tori = [0.45, 0.72, 1.0];
+
+  useFrame((state) => {
+    if (!grp.current) return;
+    const t = state.clock.elapsedTime;
+    let u = (t * 0.1 + offset) % 1;
+    if (u < 0) u += 1;
+    grp.current.position.lerpVectors(seg.a, seg.b, u);
+    grp.current.position.y = floatY;
+    const fade = 1 - dimRef.current * 0.92;
+    const pktScale = Math.max(0.0001, 1 - dimRef.current);
+    if (spinRef.current) {
+      spinRef.current.rotation.y = t * spin;
+      spinRef.current.scale.setScalar(0.5 * sizeMul * pktScale);
+    }
+    if (gradient) col.copy(seg.ca).lerp(seg.cb, u).lerp(white, 0.15);
+    else col.copy(NEUTRAL_PKT);
+    lineMat.color.copy(col);
+    lineMat.opacity = 0.95 * fade;
+    glowMat.color.copy(col);
+    glowMat.opacity = 0.9 * fade;
+    solidMat.color.copy(col);
+    solidMat.emissive.copy(col);
+    solidMat.transparent = fade < 0.99;
+    solidMat.opacity = fade;
+    panelMat.color.copy(col).multiplyScalar(0.16);
+    panelMat.opacity = 0.55 * fade;
+    if (billboardRef.current && spinRef.current) {
+      // local orientation that makes inner content face the camera in world space
+      spinRef.current.getWorldQuaternion(tmpQ).invert();
+      billboardRef.current.quaternion.copy(tmpQ).multiply(state.camera.quaternion);
+    }
+    if (trails) {
+      const spacing = 0.26 * trailLen; // world units between puffs
+      for (let j = 0; j < TRAIL_N; j++) {
+        const sp = trailRefs.current[j];
+        if (!sp) continue;
+        sp.position.x = -(j + 1) * spacing; // -X is "behind" after trailQuat aligns +X to travel dir
+        const decay = 1 - j / TRAIL_N;
+        const s = 0.62 * sizeMul * (0.45 + 0.55 * decay) * pktScale;
+        sp.scale.set(s, s, 1);
+        const m = sp.material as THREE.SpriteMaterial;
+        m.color.copy(col);
+        m.opacity = trailGlow * decay * decay * fade;
+      }
+    }
+  });
+
+  return (
+    <group ref={grp}>
+      {trails && (
+        <group quaternion={trailQuat}>
+          {Array.from({ length: TRAIL_N }, (_, j) => (
+            <sprite
+              key={j}
+              ref={(el) => {
+                if (el) trailRefs.current[j] = el;
+              }}
+            >
+              <spriteMaterial map={trailTex} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
+            </sprite>
+          ))}
+        </group>
+      )}
+      <group ref={spinRef}>
+        {kind === "candidate" && (
+          <group scale={cellBoost ? 1.5 : 1}>
+            <lineSegments geometry={CELL_EDGES} material={lineMat} />
+            {corners.map((p, i) => (
+              <mesh key={i} geometry={cornerGeo} material={glowMat} position={p} scale={cellBoost ? 1.35 : 1} />
+            ))}
+            <mesh geometry={cornerGeo} material={glowMat} scale={cellBoost ? 1.9 : 1.3} />
+          </group>
+        )}
+        {kind === "material" &&
+          CHUNK_BLOCKS.map((b, i) => (
+            <mesh
+              key={i}
+              geometry={blockGeo}
+              material={solidMat}
+              position={b.p}
+              rotation={[b.rx, b.ry, b.rz]}
+              scale={b.s}
+            />
+          ))}
+        {kind === "data" && dataGlyph === "rings" && (
+          <group rotation={[-Math.PI / 2 + 0.4, 0, 0]}>
+            {tori.map((r, i) => (
+              <mesh key={i} material={glowMat}>
+                <torusGeometry args={[r, 0.035, 8, 48]} />
+              </mesh>
+            ))}
+          </group>
+        )}
+        {kind === "data" && dataGlyph === "bars" &&
+          BAR_HEIGHTS.map((h, i) => {
+            const x = (i - (BAR_HEIGHTS.length - 1) / 2) * BAR_GAP;
+            return (
+              <mesh
+                key={i}
+                geometry={UNIT_BOX}
+                material={glowMat}
+                position={[x, -0.6 + h / 2, 0]}
+                scale={[BAR_W, h, BAR_W]}
+              />
+            );
+          })}
+        {kind === "data" && dataGlyph === "trace" && (
+          <group ref={billboardRef}>
+            <primitive object={traceLine} />
+            <primitive object={traceLine2} />
+          </group>
+        )}
+        {kind === "data" && dataGlyph === "card" && (
+          <group ref={billboardRef}>
+            <mesh geometry={UNIT_BOX} material={panelMat} scale={[1.5, 1.05, 0.06]} />
+            <lineSegments geometry={cardPanelEdges} material={lineMat} />
+            <primitive object={cardPlotLine} />
+          </group>
+        )}
+        {kind === "data" && dataGlyph === "db" &&
+          [-0.36, 0, 0.36].map((y, i) => (
+            <mesh key={i} geometry={DISK_GEO} material={solidMat} position={[0, y, 0]} />
+          ))}
+        {kind === "data" && dataGlyph === "scatter" && (
+          <>
+            <primitive object={scatterFitLine} />
+            {SCATTER_PTS.map((p, i) => (
+              <mesh key={i} geometry={DOT_GEO} material={glowMat} position={p} />
+            ))}
+          </>
+        )}
+      </group>
+    </group>
+  );
 }
 
 function RegionTotem({
@@ -109,6 +540,7 @@ function RegionTotem({
   anyHover,
   focusActive,
   anchor,
+  balance,
   onOver,
   onOut,
   onSelect,
@@ -120,11 +552,16 @@ function RegionTotem({
   anyHover: boolean;
   focusActive: boolean;
   anchor: Anchor;
+  balance: boolean;
   onOver: () => void;
   onOut: () => void;
   onSelect: () => void;
 }) {
   const accent = region.node.accent ?? "#5fa8ff";
+  const bal = balance ? BALANCED[region.id] : undefined;
+  const heroScaleEff = bal?.heroScale ?? region.heroScale;
+  const haloScaleVal = bal?.haloScale ?? 5.2;
+  const haloRest = bal?.haloRest ?? 0.28;
   const accentCol = useMemo(() => new THREE.Color(accent), [accent]);
   const heroRef = useRef<THREE.Group>(null);
   const haloRef = useRef<THREE.Sprite>(null);
@@ -141,10 +578,10 @@ function RegionTotem({
   useFrame(() => {
     const tScale = focused ? 1.12 : mutedByFocus ? 0.74 : hovered ? 1.1 : dim ? 0.92 : 1;
     cur.current += (tScale - cur.current) * 0.12;
-    if (heroRef.current) heroRef.current.scale.setScalar(region.heroScale * cur.current);
+    if (heroRef.current) heroRef.current.scale.setScalar(heroScaleEff * cur.current);
     if (haloRef.current) {
       const m = haloRef.current.material as THREE.SpriteMaterial;
-      const tHalo = focused ? 0.95 : mutedByFocus ? 0.03 : hovered ? 0.85 : dim ? 0.05 : 0.28;
+      const tHalo = focused ? 0.95 : mutedByFocus ? 0.03 : hovered ? 0.85 : dim ? 0.05 : haloRest;
       m.opacity += (tHalo - m.opacity) * 0.12;
     }
     if (rimRef.current) {
@@ -194,12 +631,12 @@ function RegionTotem({
       )}
 
       {/* glow halo behind the floating hero */}
-      <sprite ref={haloRef} position={[0, region.heroLift * 0.9, 0]} scale={[5.2, 5.2, 1]}>
-        <spriteMaterial map={halo} color={accentCol} transparent opacity={0.28} depthWrite={false} blending={THREE.AdditiveBlending} />
+      <sprite ref={haloRef} position={[0, region.heroLift * 0.9, 0]} scale={[haloScaleVal, haloScaleVal, 1]}>
+        <spriteMaterial map={halo} color={accentCol} transparent opacity={haloRest} depthWrite={false} blending={THREE.AdditiveBlending} />
       </sprite>
 
       {/* floating hero */}
-      <group ref={heroRef} position={[0, region.heroLift, 0]} scale={region.heroScale}>
+      <group ref={heroRef} position={[0, region.heroLift, 0]} scale={heroScaleEff}>
         <AutoSpin speed={region.heroSpin}>
           <Hero />
         </AutoSpin>
@@ -249,7 +686,44 @@ function RegionTotem({
   );
 }
 
-function Conduits({ dimRef }: { dimRef: React.MutableRefObject<number> }) {
+// payload glyph carried on each leg of the loop (matches segment order:
+// discover→synthesis, synthesis→characterize, characterize→discover)
+const SEG_GLYPH: Glyph[] = ["candidate", "material", "data"];
+
+type PacketMode = "dots" | "glyphs" | "3d";
+
+function Conduits({
+  dimRef,
+  mode,
+  gradient,
+  activeOnly,
+  focusId,
+  size,
+  spin,
+  floatY,
+  count,
+  dataGlyph,
+  cellBoost,
+  trails,
+  trailLen,
+  trailGlow,
+}: {
+  dimRef: React.MutableRefObject<number>;
+  mode: PacketMode;
+  gradient: boolean;
+  activeOnly: boolean;
+  focusId: string | null;
+  size: number;
+  spin: number;
+  floatY: number;
+  count: number;
+  dataGlyph: DataGlyph;
+  cellBoost: boolean;
+  trails: boolean;
+  trailLen: number;
+  trailGlow: number;
+}) {
+  const glyph = mode === "glyphs";
   // each segment carries the accent of the stage at each end, so the line and
   // its packets bleed from one stage's color into the next along their length.
   const segs = useMemo(
@@ -263,39 +737,80 @@ function Conduits({ dimRef }: { dimRef: React.MutableRefObject<number> }) {
       }),
     []
   );
-  const K = 4;
+
+  // a leg is "active" when the focused stage is one of its two endpoints
+  const activeIdx = focusId ? LAB_REGIONS.findIndex((r) => r.id === focusId) : -1;
+  const isActive = (si: number) => activeIdx >= 0 && (si === activeIdx || (si + 1) % segs.length === activeIdx);
+  const segVisible = (si: number) => !activeOnly || isActive(si);
+
+  // packets carried per leg (tunable from the lab panel)
+  const K = Math.max(1, Math.round(count));
   const total = segs.length * K;
   const inst = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const pktCol = useMemo(() => new THREE.Color(), []);
   const white = useMemo(() => new THREE.Color(0xffffff), []);
   const lineRefs = useRef<Array<{ material?: THREE.Material & { opacity: number } }>>([]);
+  const glyphRefs = useRef<THREE.Sprite[]>([]);
+
+  // flat list of glyph packets (segment index + phase offset), glyph mode only
+  const glyphPackets = useMemo(() => {
+    const arr: { si: number; off: number; kind: Glyph }[] = [];
+    segs.forEach((_, si) => {
+      for (let k = 0; k < K; k++) arr.push({ si, off: k / K, kind: SEG_GLYPH[si] ?? "candidate" });
+    });
+    return arr;
+  }, [segs, K]);
 
   useFrame((state) => {
+    const t = state.clock.elapsedTime;
     const fade = 1 - dimRef.current * 0.92;
+    const pktScale = Math.max(0.0001, 1 - dimRef.current);
     lineRefs.current.forEach((l) => {
       if (l?.material) l.material.opacity = 0.62 * fade;
     });
-    if (!inst.current) return;
-    const t = state.clock.elapsedTime;
-    const pktScale = Math.max(0.0001, 1 - dimRef.current);
-    let idx = 0;
-    for (const seg of segs) {
-      for (let k = 0; k < K; k++) {
-        let u = (t * 0.12 + k / K) % 1;
+
+    if (inst.current) {
+      let idx = 0;
+      for (let si = 0; si < segs.length; si++) {
+        const seg = segs[si];
+        const vis = segVisible(si);
+        for (let k = 0; k < K; k++) {
+          let u = (t * 0.12 + k / K) % 1;
+          if (u < 0) u += 1;
+          dummy.position.lerpVectors(seg.a, seg.b, u);
+          dummy.scale.setScalar(vis ? size * pktScale : 0);
+          dummy.updateMatrix();
+          inst.current.setMatrixAt(idx, dummy.matrix);
+          if (gradient) pktCol.copy(seg.ca).lerp(seg.cb, u).lerp(white, 0.12);
+          else pktCol.copy(NEUTRAL_PKT);
+          inst.current.setColorAt(idx, pktCol);
+          idx++;
+        }
+      }
+      inst.current.instanceMatrix.needsUpdate = true;
+      if (inst.current.instanceColor) inst.current.instanceColor.needsUpdate = true;
+    }
+
+    if (glyph) {
+      for (let i = 0; i < glyphPackets.length; i++) {
+        const sp = glyphRefs.current[i];
+        if (!sp) continue;
+        const g = glyphPackets[i];
+        const seg = segs[g.si];
+        let u = (t * 0.12 + g.off) % 1;
         if (u < 0) u += 1;
-        dummy.position.lerpVectors(seg.a, seg.b, u);
-        dummy.scale.setScalar(pktScale);
-        dummy.updateMatrix();
-        inst.current.setMatrixAt(idx, dummy.matrix);
-        // packet color = stage accents lerped by position, nudged toward white so it reads as a bright mote
-        pktCol.copy(seg.ca).lerp(seg.cb, u).lerp(white, 0.12);
-        inst.current.setColorAt(idx, pktCol);
-        idx++;
+        sp.position.lerpVectors(seg.a, seg.b, u);
+        sp.position.y = 0.55; // float just above the conduit
+        const s = segVisible(g.si) ? 0.85 * size * pktScale : 0;
+        sp.scale.set(s, s, 1);
+        const m = sp.material as THREE.SpriteMaterial;
+        if (gradient) pktCol.copy(seg.ca).lerp(seg.cb, u).lerp(white, 0.1);
+        else pktCol.copy(NEUTRAL_PKT);
+        m.color.copy(pktCol);
+        m.opacity = 0.97 * fade;
       }
     }
-    inst.current.instanceMatrix.needsUpdate = true;
-    if (inst.current.instanceColor) inst.current.instanceColor.needsUpdate = true;
   });
 
   return (
@@ -314,10 +829,50 @@ function Conduits({ dimRef }: { dimRef: React.MutableRefObject<number> }) {
           dashed={false}
         />
       ))}
-      <instancedMesh ref={inst} args={[undefined as unknown as THREE.BufferGeometry, undefined as unknown as THREE.Material, total]}>
-        <sphereGeometry args={[0.1, 8, 8]} />
-        <meshBasicMaterial color={0xffffff} transparent opacity={0.95} blending={THREE.AdditiveBlending} depthWrite={false} />
-      </instancedMesh>
+
+      {mode === "dots" && (
+        <instancedMesh ref={inst} args={[undefined as unknown as THREE.BufferGeometry, undefined as unknown as THREE.Material, total]}>
+          <sphereGeometry args={[0.1, 8, 8]} />
+          <meshBasicMaterial color={0xffffff} transparent opacity={0.95} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </instancedMesh>
+      )}
+
+      {mode === "glyphs" &&
+        glyphPackets.map((g, i) => (
+          <sprite
+            key={i}
+            ref={(el) => {
+              if (el) glyphRefs.current[i] = el;
+            }}
+            scale={[0.85, 0.85, 1]}
+          >
+            <spriteMaterial map={glyphTex(g.kind)} transparent opacity={0.95} depthWrite={false} />
+          </sprite>
+        ))}
+
+      {mode === "3d" &&
+        segs.map((seg, i) =>
+          segVisible(i)
+            ? Array.from({ length: K }, (_, k) => (
+                <Packet3D
+                  key={`${i}-${k}`}
+                  seg={seg}
+                  kind={SEG_GLYPH[i] ?? "candidate"}
+                  dimRef={dimRef}
+                  gradient={gradient}
+                  sizeMul={size}
+                  spin={spin}
+                  floatY={floatY}
+                  offset={cellBoost ? pktJitter(i, k, K) : k / K}
+                  dataGlyph={dataGlyph}
+                  cellBoost={cellBoost}
+                  trails={trails}
+                  trailLen={trailLen}
+                  trailGlow={trailGlow}
+                />
+              ))
+            : null
+        )}
     </group>
   );
 }
@@ -367,6 +922,19 @@ function World({
   onSelect,
   interactive,
   anchor,
+  packetMode,
+  packetGradient,
+  packetActiveOnly,
+  packetSize,
+  packetSpin,
+  packetFloat,
+  packetCount,
+  packetDataGlyph,
+  balanceHeroes,
+  cellBoost,
+  trails,
+  trailLen,
+  trailGlow,
   diveShift,
   diveDist,
   onUserInteract,
@@ -377,6 +945,19 @@ function World({
   onSelect: (id: string) => void;
   interactive: boolean;
   anchor: Anchor;
+  packetMode: PacketMode;
+  packetGradient: boolean;
+  packetActiveOnly: boolean;
+  packetSize: number;
+  packetSpin: number;
+  packetFloat: number;
+  packetCount: number;
+  packetDataGlyph: DataGlyph;
+  balanceHeroes: boolean;
+  cellBoost: boolean;
+  trails: boolean;
+  trailLen: number;
+  trailGlow: number;
   diveShift: number;
   diveDist: number;
   onUserInteract: () => void;
@@ -403,7 +984,22 @@ function World({
       <hemisphereLight args={[0x88aaff, 0x202838, 0.45]} />
       <directionalLight position={[6, 12, 6]} intensity={0.7} />
 
-      <Conduits dimRef={dimRef} />
+      <Conduits
+        dimRef={dimRef}
+        mode={packetMode}
+        gradient={packetGradient}
+        activeOnly={packetActiveOnly}
+        focusId={focusId}
+        size={packetSize}
+        spin={packetSpin}
+        floatY={packetFloat}
+        count={packetCount}
+        dataGlyph={packetDataGlyph}
+        cellBoost={cellBoost}
+        trails={trails}
+        trailLen={trailLen}
+        trailGlow={trailGlow}
+      />
 
       {LAB_REGIONS.map((region, i) => (
         <RegionTotem
@@ -415,6 +1011,7 @@ function World({
           anyHover={hover !== null}
           focusActive={focusActive}
           anchor={anchor}
+          balance={balanceHeroes}
           onOver={() => interactive && !focusActive && setHover(region.id)}
           onOut={() => setHover(null)}
           onSelect={() => interactive && onSelect(region.id)}
@@ -503,6 +1100,19 @@ export default function LivingMapLab() {
   const [tourIdx, setTourIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [anchor, setAnchor] = useState<Anchor>("disc");
+  const [packets, setPackets] = useState<PacketMode>("3d");
+  const [packetGradient, setPacketGradient] = useState(true);
+  const [packetActiveOnly, setPacketActiveOnly] = useState(false);
+  const [packetSize, setPacketSize] = useState(0.5);
+  const [packetSpin, setPacketSpin] = useState(0.6);
+  const [packetFloat, setPacketFloat] = useState(0.78);
+  const [packetCount, setPacketCount] = useState(4);
+  const [packetDataGlyph, setPacketDataGlyph] = useState<DataGlyph>("trace");
+  const [balanceHeroes, setBalanceHeroes] = useState(false);
+  const [cellBoost, setCellBoost] = useState(false);
+  const [trails, setTrails] = useState(true);
+  const [trailLen, setTrailLen] = useState(1);
+  const [trailGlow, setTrailGlow] = useState(0.7);
 
   const inTour = mode === "tour";
   const stop = TOUR_STOPS[tourIdx];
@@ -584,6 +1194,19 @@ export default function LivingMapLab() {
           onSelect={setExploreFocus}
           interactive={!inTour}
           anchor={anchor}
+          packetMode={packets}
+          packetGradient={packetGradient}
+          packetActiveOnly={packetActiveOnly}
+          packetSize={packetSize}
+          packetSpin={packetSpin}
+          packetFloat={packetFloat}
+          packetCount={packetCount}
+          packetDataGlyph={packetDataGlyph}
+          balanceHeroes={balanceHeroes}
+          cellBoost={cellBoost}
+          trails={trails}
+          trailLen={trailLen}
+          trailGlow={trailGlow}
           diveShift={inTour ? 0 : DIVE_SHIFT}
           diveDist={inTour ? 9 : DIVE_DIST}
           onUserInteract={() => {
@@ -624,21 +1247,171 @@ export default function LivingMapLab() {
         </div>
       </div>
 
-      {/* ground-anchor prototype switcher */}
-      <div className={`absolute left-5 top-[72px] flex flex-col gap-1.5 rounded-xl border border-white/10 bg-[rgba(8,12,22,0.6)] p-2.5 backdrop-blur-md transition-opacity duration-500 ${chromeFade(!exploreFocusActive)}`}>
-        <div className="px-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Ground anchor</div>
-        <div className="flex items-center gap-1">
-          {(["none", "disc", "ring"] as Anchor[]).map((a) => (
+      {/* prototype switchers */}
+      <div className={`absolute left-5 top-[72px] flex flex-col gap-2.5 rounded-xl border border-white/10 bg-[rgba(8,12,22,0.6)] p-2.5 backdrop-blur-md transition-opacity duration-500 ${chromeFade(!exploreFocusActive)}`}>
+        <div className="flex flex-col gap-1.5">
+          <div className="px-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Ground anchor</div>
+          <div className="flex items-center gap-1">
+            {(["none", "disc", "ring"] as Anchor[]).map((a) => (
+              <button
+                key={a}
+                onClick={() => setAnchor(a)}
+                className={`rounded-md px-2.5 py-1 text-[11px] capitalize transition ${
+                  anchor === a ? "bg-white/15 text-white" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <div className="px-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Packets</div>
+          <div className="flex items-center gap-1">
+            {([
+              ["dots", "Dots"],
+              ["glyphs", "Glyphs"],
+              ["3d", "3D"],
+            ] as [PacketMode, string][]).map(([p, label]) => (
+              <button
+                key={p}
+                onClick={() => setPackets(p)}
+                className={`rounded-md px-2.5 py-1 text-[11px] transition ${
+                  packets === p ? "bg-white/15 text-white" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <div className="px-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Options</div>
+          <div className="flex items-center gap-1">
             <button
-              key={a}
-              onClick={() => setAnchor(a)}
-              className={`rounded-md px-2.5 py-1 text-[11px] capitalize transition ${
-                anchor === a ? "bg-white/15 text-white" : "text-slate-400 hover:text-white"
+              onClick={() => setPacketGradient((v) => !v)}
+              className={`rounded-md px-2.5 py-1 text-[11px] transition ${
+                packetGradient ? "bg-white/15 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              {a}
+              Gradient {packetGradient ? "on" : "off"}
             </button>
-          ))}
+            <button
+              onClick={() => setPacketActiveOnly((v) => !v)}
+              className={`rounded-md px-2.5 py-1 text-[11px] transition ${
+                packetActiveOnly ? "bg-white/15 text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Active-leg {packetActiveOnly ? "on" : "off"}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="flex items-center gap-2 px-1 text-[11px] text-slate-400">
+            <span className="w-9">Count</span>
+            <input
+              type="range"
+              min={1}
+              max={6}
+              step={1}
+              value={packetCount}
+              onChange={(e) => setPacketCount(parseInt(e.target.value, 10))}
+              className="h-1 w-24 cursor-pointer accent-sky-400"
+            />
+            <span className="w-8 tabular-nums text-slate-500">{packetCount}</span>
+          </label>
+          {([
+            ["Size", packetSize, 0.3, 2, 0.05, setPacketSize],
+            ["Spin", packetSpin, 0, 2, 0.05, setPacketSpin],
+            ["Float", packetFloat, 0.2, 2.2, 0.02, setPacketFloat],
+          ] as [string, number, number, number, number, (n: number) => void][]).map(
+            ([label, val, min, max, step, set]) => (
+              <label key={label} className="flex items-center gap-2 px-1 text-[11px] text-slate-400">
+                <span className="w-9">{label}</span>
+                <input
+                  type="range"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={val}
+                  onChange={(e) => set(parseFloat(e.target.value))}
+                  className="h-1 w-24 cursor-pointer accent-sky-400"
+                />
+                <span className="w-8 tabular-nums text-slate-500">{val.toFixed(2)}</span>
+              </label>
+            )
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <div className="px-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            Data packet
+          </div>
+          <div className="flex max-w-[208px] flex-wrap gap-1">
+            {([
+              ["rings", "Rings"],
+              ["bars", "Bars"],
+              ["trace", "Trace"],
+              ["card", "Card"],
+              ["db", "Database"],
+              ["scatter", "Scatter"],
+            ] as [DataGlyph, string][]).map(([g, label]) => (
+              <button
+                key={g}
+                onClick={() => setPacketDataGlyph(g)}
+                className={`rounded-md px-2.5 py-1 text-[11px] transition ${
+                  packetDataGlyph === g ? "bg-white/15 text-white" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
+          <div className="px-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            L0 polish
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {([
+              ["Balance heroes", balanceHeroes, () => setBalanceHeroes((v) => !v)],
+              ["Trails", trails, () => setTrails((v) => !v)],
+              ["Cell boost", cellBoost, () => setCellBoost((v) => !v)],
+            ] as [string, boolean, () => void][]).map(([label, on, toggle]) => (
+              <button
+                key={label}
+                onClick={toggle}
+                className={`rounded-md px-2.5 py-1 text-[11px] transition ${
+                  on ? "bg-white/15 text-white" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                {label} {on ? "on" : "off"}
+              </button>
+            ))}
+          </div>
+          {([
+            ["Trail len", trailLen, 0.2, 3, 0.05, setTrailLen],
+            ["Trail glow", trailGlow, 0, 1.5, 0.05, setTrailGlow],
+          ] as [string, number, number, number, number, (n: number) => void][]).map(
+            ([label, val, min, max, step, set]) => (
+              <label key={label} className="flex items-center gap-2 px-1 text-[11px] text-slate-400">
+                <span className="w-14">{label}</span>
+                <input
+                  type="range"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={val}
+                  onChange={(e) => set(parseFloat(e.target.value))}
+                  className="h-1 w-20 cursor-pointer accent-sky-400"
+                />
+                <span className="w-8 tabular-nums text-slate-500">{val.toFixed(2)}</span>
+              </label>
+            )
+          )}
         </div>
       </div>
 
