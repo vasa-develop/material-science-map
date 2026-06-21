@@ -41,7 +41,7 @@ function build2s(count: number) {
   return positions;
 }
 
-function Orbital2s({ spin, pointSize }: { spin: boolean; pointSize: number }) {
+function Orbital2s({ spin, pointSize, color = 0x9d5cff }: { spin: boolean; pointSize: number; color?: number }) {
   const group = useRef<THREE.Group>(null);
   const positions = useMemo(() => build2s(18000), []);
 
@@ -60,7 +60,7 @@ function Orbital2s({ spin, pointSize }: { spin: boolean; pointSize: number }) {
           <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         </bufferGeometry>
         <pointsMaterial
-          color={0x9d5cff}
+          color={color}
           size={pointSize}
           sizeAttenuation
           transparent
@@ -71,6 +71,11 @@ function Orbital2s({ spin, pointSize }: { spin: boolean; pointSize: number }) {
       </points>
     </group>
   );
+}
+
+/** Content-only version for embedding in the shared map canvas (no lights/canvas/UI). */
+export function Orbital2sMapScene() {
+  return <Orbital2s spin={false} pointSize={0.025} color={0x38bdf8} />;
 }
 
 export default function Orbital2sAsset() {

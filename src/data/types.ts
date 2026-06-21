@@ -15,7 +15,13 @@ export interface MapLink {
   kind?: "primer" | "demo" | "ref";
 }
 
-export type NodeKind = "root" | "domain" | "branch" | "concept" | "leaf";
+export type NodeKind = "root" | "region" | "domain" | "branch" | "concept" | "leaf";
+
+/** The three top-level stages of the materials loop. */
+export type Stage = "discover" | "synthesis" | "characterize";
+
+/** Internal beat of the Synthesis stage. */
+export type Beat = "plan" | "make" | "automate";
 
 /** Normalized rect (0..1) describing where a child lives inside its parent's illustration. */
 export interface Rect {
@@ -30,6 +36,18 @@ export interface MapNode {
   title: string;
   subtitle?: string;
   kind?: NodeKind;
+  /** which stage this node belongs to (set on regions + their members) */
+  stage?: Stage;
+  /** internal beat of the Synthesis stage (plan/make/automate) */
+  beat?: Beat;
+  /** zoom level: 0 = region (L0), 1 = node (L1), deeper = concepts/leaves */
+  level?: number;
+  /** one-line essence used for L0 captions + tour narration */
+  essence?: string;
+  /** present in the data graph but intentionally not rendered on the map (e.g. scale-up) */
+  hidden?: boolean;
+  /** free-form tags for future lenses (material class, scale, maturity, ...) */
+  tags?: string[];
   /** tailwind-friendly accent hue used for glow/border, e.g. "#38bdf8" */
   accent?: string;
   /** full-bleed illustration for this scene (path under /public) */
