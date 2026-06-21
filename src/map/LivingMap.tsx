@@ -660,16 +660,19 @@ function RegionTotem({
         </AutoSpin>
       </group>
 
-      {/* invisible hitbox for hover/click */}
+      {/* invisible hitbox for hover/click. While this stage is focused, drop all
+          handlers so R3F removes it from raycasting — otherwise this large central
+          box sits between the camera and the back half of the L1 member ring and
+          swallows their hover via stopPropagation. */}
       <mesh
         position={[0, region.heroLift, 0]}
         visible={false}
-        onPointerOver={(e) => {
+        onPointerOver={focused ? undefined : (e) => {
           e.stopPropagation();
           onOver();
         }}
-        onPointerOut={() => onOut()}
-        onClick={(e) => {
+        onPointerOut={focused ? undefined : () => onOut()}
+        onClick={focused ? undefined : (e) => {
           e.stopPropagation();
           onSelect();
         }}
