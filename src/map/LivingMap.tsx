@@ -582,6 +582,7 @@ function RegionTotem({
   anchor,
   balance,
   recede,
+  l2,
   onOver,
   onOut,
   onSelect,
@@ -595,6 +596,7 @@ function RegionTotem({
   anchor: Anchor;
   balance: boolean;
   recede: boolean;
+  l2: boolean; // an L2 member is deep-zoomed → fade every stage hero out for a clean frame
   onOver: () => void;
   onOut: () => void;
   onSelect: () => void;
@@ -620,26 +622,30 @@ function RegionTotem({
   useFrame(() => {
     // when the member ring blooms (recede), the focused hero shrinks to a central
     // "stage core" so the members read as the contents; otherwise it pops forward.
+    // At L2 every hero (incl. the stage core) fully recedes so a single member reads alone.
     const focusScale = recede ? 0.5 : 1.12;
-    const tScale = focused ? focusScale : mutedByFocus ? 0.74 : hovered ? 1.1 : dim ? 0.92 : 1;
+    const tScale = l2 ? 0.0001 : focused ? focusScale : mutedByFocus ? 0.74 : hovered ? 1.1 : dim ? 0.92 : 1;
     cur.current += (tScale - cur.current) * 0.12;
-    if (heroRef.current) heroRef.current.scale.setScalar(heroScaleEff * cur.current);
+    if (heroRef.current) {
+      heroRef.current.scale.setScalar(heroScaleEff * cur.current);
+      heroRef.current.visible = cur.current > 0.01;
+    }
     if (haloRef.current) {
       const m = haloRef.current.material as THREE.SpriteMaterial;
       const focusHalo = recede ? 0.4 : 0.95;
-      const tHalo = focused ? focusHalo : mutedByFocus ? 0.03 : hovered ? 0.85 : dim ? 0.05 : haloRest;
+      const tHalo = l2 ? 0 : focused ? focusHalo : mutedByFocus ? 0.03 : hovered ? 0.85 : dim ? 0.05 : haloRest;
       m.opacity += (tHalo - m.opacity) * 0.12;
     }
     if (rimRef.current) {
-      const tE = focused ? 2.0 : mutedByFocus ? 0.08 : hovered ? 1.7 : dim ? 0.2 : 0.6;
+      const tE = l2 ? 0 : focused ? 2.0 : mutedByFocus ? 0.08 : hovered ? 1.7 : dim ? 0.2 : 0.6;
       rimRef.current.emissiveIntensity += (tE - rimRef.current.emissiveIntensity) * 0.12;
     }
     if (discRef.current) {
-      const tD = focused ? 0.72 : mutedByFocus ? 0.04 : hovered ? 0.66 : dim ? 0.16 : 0.42;
+      const tD = l2 ? 0 : focused ? 0.72 : mutedByFocus ? 0.04 : hovered ? 0.66 : dim ? 0.16 : 0.42;
       discRef.current.opacity += (tD - discRef.current.opacity) * 0.12;
     }
     if (ringRef.current) {
-      const tR = focused ? 0.95 : mutedByFocus ? 0.05 : hovered ? 0.88 : dim ? 0.22 : 0.6;
+      const tR = l2 ? 0 : focused ? 0.95 : mutedByFocus ? 0.05 : hovered ? 0.88 : dim ? 0.22 : 0.6;
       ringRef.current.opacity += (tR - ringRef.current.opacity) * 0.12;
     }
   });
@@ -1330,6 +1336,7 @@ function World({
           anchor={anchor}
           balance={balanceHeroes}
           recede={showMembers && focusId === region.id}
+          l2={nodeFocus !== null}
           onOver={() => interactive && !focusActive && setHover(region.id)}
           onOut={() => setHover(null)}
           onSelect={() => interactive && onSelect(region.id)}
@@ -1565,6 +1572,12 @@ export default function LivingMap() {
         // step through the guided tour stops, pausing auto-advance
         setTourIdx((cur) => (cur + dir + TOUR_STOPS.length) % TOUR_STOPS.length);
         setPlaying(false);
+      } else if (nodeFocusRef.current) {
+        // L2: cycle sibling methods within the focused stage (built ones only)
+        const region = L0_REGIONS.find((r) => (r.node.children ?? []).some((c) => c.id === nodeFocusRef.current));
+        const ids = (region?.node.children ?? []).filter((c) => ringNodeById(c.id)).map((c) => c.id);
+        const i = ids.indexOf(nodeFocusRef.current);
+        if (i >= 0 && ids.length > 1) setNodeFocus(ids[(i + dir + ids.length) % ids.length]);
       } else {
         // cycle the focused stage around the loop (entering focus if none yet)
         setExploreFocus((cur) => {
@@ -1939,7 +1952,8 @@ export default function LivingMap() {
                 >
                   Full view ↗
                 </button>
-                <span className="text-[11px] text-slate-500">Esc · back to stage</span>
+                <span className="hidden text-[11px] text-slate-500 sm:inline">← → methods · Esc back</span>
+                <span className="text-[11px] text-slate-500 sm:hidden">Esc · back to stage</span>
               </div>
             </div>
           </motion.div>
