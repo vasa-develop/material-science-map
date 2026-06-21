@@ -718,6 +718,7 @@ function MemberNode({
   ring,
   x,
   z,
+  interactive,
   hovered,
   anyHover,
   onOver,
@@ -728,6 +729,7 @@ function MemberNode({
   ring: RingNode | undefined;
   x: number;
   z: number;
+  interactive: boolean; // false in Tour: ring is a display-only showcase
   hovered: boolean;
   anyHover: boolean;
   onOver: () => void;
@@ -798,20 +800,22 @@ function MemberNode({
       </group>
 
       {/* hitbox — every node is hoverable (drives cross-highlight with the list);
-          only built assets are clickable + show the pointer cursor. */}
+          only built assets are clickable + show the pointer cursor. In Tour the
+          ring is display-only, so we drop all handlers (R3F then skips raycasting
+          it entirely — no stray hover/navigation during auto-play). */}
       <mesh
         position={[0, lift, 0]}
         visible={false}
-        onPointerOver={(e) => {
+        onPointerOver={!interactive ? undefined : (e) => {
           e.stopPropagation();
           onOver();
           if (hasAsset) document.body.style.cursor = "pointer";
         }}
-        onPointerOut={() => {
+        onPointerOut={!interactive ? undefined : () => {
           onOut();
           document.body.style.cursor = "default";
         }}
-        onClick={hasAsset ? (e) => { e.stopPropagation(); onOpen(); } : undefined}
+        onClick={interactive && hasAsset ? (e) => { e.stopPropagation(); onOpen(); } : undefined}
       >
         <boxGeometry args={[2, 2.4, 2]} />
       </mesh>
@@ -840,12 +844,14 @@ function MemberNode({
 function RegionMembers({
   region,
   show,
+  interactive,
   hoverId,
   onHover,
   onOpenNode,
 }: {
   region: RegionVis;
   show: boolean;
+  interactive: boolean;
   hoverId: string | null;
   onHover: (id: string | null) => void;
   onOpenNode: (id: string) => void;
@@ -902,6 +908,7 @@ function RegionMembers({
             ring={ring}
             x={x}
             z={z}
+            interactive={interactive}
             hovered={hoverId === m.id}
             anyHover={hoverId !== null}
             onOver={() => onHover(m.id)}
@@ -1185,6 +1192,7 @@ function World({
   diveLift,
   freeHome,
   showMembers,
+  membersInteractive,
   memberHover,
   onMemberHover,
   onOpenNode,
@@ -1214,6 +1222,7 @@ function World({
   diveLift: number;
   freeHome: boolean;
   showMembers: boolean;
+  membersInteractive: boolean;
   memberHover: string | null;
   onMemberHover: (id: string | null) => void;
   onOpenNode: (id: string) => void;
@@ -1284,6 +1293,7 @@ function World({
             key={region.id}
             region={region}
             show={focusId === region.id}
+            interactive={membersInteractive}
             hoverId={memberHover}
             onHover={onMemberHover}
             onOpenNode={onOpenNode}
@@ -1316,7 +1326,13 @@ const REGION_TAG: Record<string, string> = {
 };
 
 interface TourStop {
+  /** which region the camera frames; null = the whole-loop overview */
   focusId: string | null;
+  /** zoom depth this stop sits at: 0 = overview/loop, 1 = stage (blooms its member
+   *  ring), 2 = an individual method (reserved for a future in-canvas L2 dive). */
+  level: 0 | 1 | 2;
+  /** the specific member node this stop dives into (only used at level 2) */
+  nodeId?: string;
   title: string;
   caption: string;
   dwell: number;
@@ -1324,9 +1340,12 @@ interface TourStop {
 }
 
 // The guided narrative: establishing drift → the three stages → loop close.
+// Stage stops (level 1) bloom that stage's member ring as the camera arrives;
+// level-2 (per-method) stops can be inserted later for a deeper guided dive.
 const TOUR_STOPS: TourStop[] = [
   {
     focusId: null,
+    level: 0,
     title: "The Materials Loop",
     caption:
       "Three stages, one closed loop — discover what to make, synthesize it, then characterize what you made, feeding the truth back to discovery.",
@@ -1335,27 +1354,31 @@ const TOUR_STOPS: TourStop[] = [
   },
   {
     focusId: "discover",
+    level: 1,
     title: "① Discovery",
     caption: regionById("discover")?.node.essence ?? "",
-    dwell: 6000,
+    dwell: 7500,
     accent: regionById("discover")?.node.accent ?? "#38bdf8",
   },
   {
     focusId: "synthesis",
+    level: 1,
     title: "② Synthesis",
     caption: regionById("synthesis")?.node.essence ?? "",
-    dwell: 6000,
+    dwell: 7500,
     accent: regionById("synthesis")?.node.accent ?? "#fbbf24",
   },
   {
     focusId: "characterize",
+    level: 1,
     title: "③ Characterization",
     caption: regionById("characterize")?.node.essence ?? "",
-    dwell: 6000,
+    dwell: 7500,
     accent: regionById("characterize")?.node.accent ?? "#f472b6",
   },
   {
     focusId: null,
+    level: 0,
     title: "…and back again",
     caption:
       "Characterization feeds new ground truth back into discovery — closing the loop and making the whole system smarter on every pass.",
@@ -1519,10 +1542,14 @@ export default function LivingMap() {
           trailLen={trailLen}
           trailGlow={trailGlow}
           diveShift={inTour || isCompact ? 0 : DIVE_SHIFT}
-          diveDist={inTour ? 9 : isCompact ? DIVE_DIST : L1_DIST}
-          diveLift={!inTour && isCompact ? 1.15 : 0}
+          // desktop frames the member ring (L1_DIST) in both modes; compact keeps
+          // hero framing (members are off on phones).
+          diveDist={!isCompact ? L1_DIST : inTour ? 9 : DIVE_DIST}
+          // lift the cluster a touch in desktop Tour so the ring clears the caption bar.
+          diveLift={!isCompact ? (inTour ? 0.8 : 0) : inTour ? 0 : 1.15}
           freeHome={EXPLORE_FREE_ORBIT && !inTour && focusId === null}
-          showMembers={!inTour && !isCompact}
+          showMembers={!isCompact}
+          membersInteractive={!inTour}
           memberHover={memberHover}
           onMemberHover={setMemberHover}
           onOpenNode={(id) => navigate(`/n/${id}`)}
