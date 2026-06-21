@@ -4,7 +4,8 @@ import { OrbitControls, Html, Line } from "@react-three/drei";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import * as THREE from "three";
-import { regionById, ringNodeById, type RegionVis } from "./ringNodes";
+import { regionById, ringNodeById, type RegionVis, type RingNode } from "./ringNodes";
+import type { MapNode } from "../data/types";
 import { CrucibleMapScene } from "../proto/CrucibleAsset";
 import { CharacterizationMapScene } from "../proto/CharacterizationAsset";
 import { Orbital2sMapScene } from "../proto/Orbital2sAsset";
@@ -78,6 +79,9 @@ const ISO_DIR = HOME_CAM.clone().sub(HOME_TGT).normalize();
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const SCREEN_RIGHT = new THREE.Vector3().crossVectors(WORLD_UP, ISO_DIR).normalize();
 const DIVE_DIST = 6.6;
+const L1_DIST = 15.5; // desktop dive distance when a stage blooms its member ring (needs room for the ring)
+const L1_RING_R = 2.9; // ground radius of the member ring around the focused hero
+const MEMBER_SCALE = 0.6; // shrink member mini-scenes (their RING_NODES scale is tuned for standalone/L2)
 const DIVE_SHIFT = 1.5; // how far to push the region off-center toward screen-right (clears the left inspector panel while staying near center)
 // Master switch for user camera control. When true, Explore lets the user drag to
 // orbit + scroll to zoom (overview releases to free orbit; re-centering only when
@@ -549,6 +553,7 @@ function RegionTotem({
   focusActive,
   anchor,
   balance,
+  recede,
   onOver,
   onOut,
   onSelect,
@@ -561,6 +566,7 @@ function RegionTotem({
   focusActive: boolean;
   anchor: Anchor;
   balance: boolean;
+  recede: boolean;
   onOver: () => void;
   onOut: () => void;
   onSelect: () => void;
@@ -584,12 +590,16 @@ function RegionTotem({
   const [x, z] = pos;
 
   useFrame(() => {
-    const tScale = focused ? 1.12 : mutedByFocus ? 0.74 : hovered ? 1.1 : dim ? 0.92 : 1;
+    // when the member ring blooms (recede), the focused hero shrinks to a central
+    // "stage core" so the members read as the contents; otherwise it pops forward.
+    const focusScale = recede ? 0.5 : 1.12;
+    const tScale = focused ? focusScale : mutedByFocus ? 0.74 : hovered ? 1.1 : dim ? 0.92 : 1;
     cur.current += (tScale - cur.current) * 0.12;
     if (heroRef.current) heroRef.current.scale.setScalar(heroScaleEff * cur.current);
     if (haloRef.current) {
       const m = haloRef.current.material as THREE.SpriteMaterial;
-      const tHalo = focused ? 0.95 : mutedByFocus ? 0.03 : hovered ? 0.85 : dim ? 0.05 : haloRest;
+      const focusHalo = recede ? 0.4 : 0.95;
+      const tHalo = focused ? focusHalo : mutedByFocus ? 0.03 : hovered ? 0.85 : dim ? 0.05 : haloRest;
       m.opacity += (tHalo - m.opacity) * 0.12;
     }
     if (rimRef.current) {
@@ -690,6 +700,213 @@ function RegionTotem({
           </span>
         </div>
       </Html>
+    </group>
+  );
+}
+
+/* ─────────────────────────── L1: stage member ring ─────────────────────────── */
+
+const MEMBER_PLACEHOLDER_GEO = new THREE.OctahedronGeometry(0.7, 0);
+
+// One method node in the focused stage's ring. Renders its mini scene (if a real
+// asset exists) or a dim "soon" placeholder, with a plinth, halo, label + hitbox.
+function MemberNode({
+  node,
+  ring,
+  x,
+  z,
+  hovered,
+  anyHover,
+  onOver,
+  onOut,
+  onOpen,
+}: {
+  node: MapNode;
+  ring: RingNode | undefined;
+  x: number;
+  z: number;
+  hovered: boolean;
+  anyHover: boolean;
+  onOver: () => void;
+  onOut: () => void;
+  onOpen: () => void; // no-op for not-yet-built ("soon") methods
+}) {
+  const accent = node.accent ?? "#5fa8ff";
+  const accentCol = useMemo(() => new THREE.Color(accent), [accent]);
+  const halo = useMemo(() => glowTex(), []);
+  const hasAsset = !!ring;
+  const lift = ring?.lift ?? 0.85;
+  const baseScale = (ring?.scale ?? 0.55) * MEMBER_SCALE;
+  const Scene = ring?.Scene;
+
+  const assetRef = useRef<THREE.Group>(null);
+  const haloRef = useRef<THREE.Sprite>(null);
+  const discRef = useRef<THREE.MeshBasicMaterial>(null);
+  const cur = useRef(1);
+  const dim = anyHover && !hovered;
+
+  useFrame(() => {
+    const tS = hovered ? 1.15 : dim ? 0.92 : 1;
+    cur.current += (tS - cur.current) * 0.15;
+    if (assetRef.current) assetRef.current.scale.setScalar(baseScale * cur.current);
+    if (haloRef.current) {
+      const m = haloRef.current.material as THREE.SpriteMaterial;
+      const t = hovered ? 0.85 : dim ? 0.12 : 0.42;
+      m.opacity += (t - m.opacity) * 0.15;
+    }
+    if (discRef.current) {
+      const t = hovered ? 0.62 : dim ? 0.18 : 0.4;
+      discRef.current.opacity += (t - discRef.current.opacity) * 0.15;
+    }
+  });
+
+  return (
+    <group position={[x, 0, z]}>
+      {/* plinth glow */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
+        <circleGeometry args={[1.25, 48]} />
+        <meshBasicMaterial
+          ref={discRef}
+          map={halo}
+          color={accentCol}
+          transparent
+          opacity={0.4}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+
+      {/* halo behind the floating node */}
+      <sprite ref={haloRef} position={[0, lift * 0.92, 0]} scale={[2.7, 2.7, 1]}>
+        <spriteMaterial map={halo} color={accentCol} transparent opacity={0.42} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </sprite>
+
+      {/* the asset, or a dim placeholder for not-yet-built methods */}
+      <group ref={assetRef} position={[0, lift, 0]} scale={baseScale}>
+        {hasAsset && Scene ? (
+          <AutoSpin speed={ring?.autoSpin ?? 0}>
+            <Scene />
+          </AutoSpin>
+        ) : (
+          <mesh geometry={MEMBER_PLACEHOLDER_GEO}>
+            <meshStandardMaterial color={accentCol} emissive={accentCol} emissiveIntensity={0.35} roughness={0.4} metalness={0.1} transparent opacity={0.45} flatShading />
+          </mesh>
+        )}
+      </group>
+
+      {/* hitbox — every node is hoverable (drives cross-highlight with the list);
+          only built assets are clickable + show the pointer cursor. */}
+      <mesh
+        position={[0, lift, 0]}
+        visible={false}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          onOver();
+          if (hasAsset) document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          onOut();
+          document.body.style.cursor = "default";
+        }}
+        onClick={hasAsset ? (e) => { e.stopPropagation(); onOpen(); } : undefined}
+      >
+        <boxGeometry args={[2, 2.4, 2]} />
+      </mesh>
+
+      {/* label — fixed screen size (no distanceFactor) for predictable legibility */}
+      <Html position={[0, lift + 1.15, 0]} center style={{ pointerEvents: "none" }} zIndexRange={[20, 0]}>
+        <div
+          className="flex flex-col items-center gap-0.5 whitespace-nowrap text-center"
+          style={{ opacity: dim ? 0.5 : 1, transition: "opacity 0.3s ease" }}
+        >
+          <span className="text-[11px] font-semibold text-white drop-shadow">{node.title}</span>
+          <span className="text-[8px] font-semibold uppercase tracking-[0.18em]" style={{ color: hasAsset ? accent : "#64748b" }}>
+            {hasAsset ? "open ↗" : "soon"}
+          </span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+// One stage's members, bloomed into a ground ring around the hero. `show` drives
+// a symmetric bloom-in / bloom-out (the ring scales up from / collapses back into
+// the core). Heavy mini-scenes stay mounted only while engaged so the collapse can
+// animate; they unmount once fully closed. Hover is lifted to the parent so the
+// inspector list and the 3D ring can cross-highlight each other.
+function RegionMembers({
+  region,
+  show,
+  hoverId,
+  onHover,
+  onOpenNode,
+}: {
+  region: RegionVis;
+  show: boolean;
+  hoverId: string | null;
+  onHover: (id: string | null) => void;
+  onOpenNode: (id: string) => void;
+}) {
+  const members = region.node.children ?? [];
+  const [cx, cz] = region.pos;
+  const groupRef = useRef<THREE.Group>(null);
+  const cur = useRef(0); // 0 = collapsed into core, 1 = fully bloomed
+  const [engaged, setEngaged] = useState(false);
+
+  // mount the heavy scenes as soon as we start opening
+  useEffect(() => {
+    if (show) setEngaged(true);
+  }, [show]);
+
+  useFrame(() => {
+    const target = show ? 1 : 0;
+    cur.current += (target - cur.current) * 0.1;
+    const g = groupRef.current;
+    if (g) {
+      g.scale.setScalar(Math.max(cur.current, 0.0001));
+      g.visible = cur.current > 0.005;
+    }
+    // once fully collapsed, drop the scenes (and any lingering pointer cursor)
+    if (!show && engaged && cur.current < 0.02) {
+      setEngaged(false);
+      document.body.style.cursor = "default";
+    }
+  });
+
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = "default";
+    };
+  }, []);
+
+  if (!engaged) return null;
+
+  // distribute members on a ring, biased so the first sits toward the camera-front
+  const N = members.length;
+  const base = Math.PI / 2;
+
+  return (
+    <group ref={groupRef} position={[cx, 0, cz]}>
+      {members.map((m, i) => {
+        const ang = base + (i / N) * Math.PI * 2;
+        const x = Math.cos(ang) * L1_RING_R;
+        const z = Math.sin(ang) * L1_RING_R;
+        const ring = ringNodeById(m.id);
+        return (
+          <MemberNode
+            key={m.id}
+            node={m}
+            ring={ring}
+            x={x}
+            z={z}
+            hovered={hoverId === m.id}
+            anyHover={hoverId !== null}
+            onOver={() => onHover(m.id)}
+            onOut={() => onHover(null)}
+            onOpen={() => onOpenNode(m.id)}
+          />
+        );
+      })}
     </group>
   );
 }
@@ -964,6 +1181,10 @@ function World({
   diveDist,
   diveLift,
   freeHome,
+  showMembers,
+  memberHover,
+  onMemberHover,
+  onOpenNode,
   onUserInteract,
 }: {
   hover: string | null;
@@ -989,6 +1210,10 @@ function World({
   diveDist: number;
   diveLift: number;
   freeHome: boolean;
+  showMembers: boolean;
+  memberHover: string | null;
+  onMemberHover: (id: string | null) => void;
+  onOpenNode: (id: string) => void;
   onUserInteract: () => void;
 }) {
   const focusActive = focusId !== null;
@@ -1041,11 +1266,26 @@ function World({
           focusActive={focusActive}
           anchor={anchor}
           balance={balanceHeroes}
+          recede={showMembers && focusId === region.id}
           onOver={() => interactive && !focusActive && setHover(region.id)}
           onOut={() => setHover(null)}
           onSelect={() => interactive && onSelect(region.id)}
         />
       ))}
+
+      {/* L1: each stage's member ring blooms in when focused and collapses out when
+          left. All three are mounted (cheaply) so the exit can animate. */}
+      {showMembers &&
+        L0_REGIONS.map((region) => (
+          <RegionMembers
+            key={region.id}
+            region={region}
+            show={focusId === region.id}
+            hoverId={memberHover}
+            onHover={onMemberHover}
+            onOpenNode={onOpenNode}
+          />
+        ))}
 
       <OrbitControls
         makeDefault
@@ -1156,6 +1396,8 @@ export default function LivingMap() {
   const [mode, setMode] = useState<Mode>("tour");
   const [hover, setHover] = useState<string | null>(null);
   const [exploreFocus, setExploreFocus] = useState<string | null>(null);
+  // shared hover for L1 members so the inspector list ↔ 3D ring cross-highlight
+  const [memberHover, setMemberHover] = useState<string | null>(null);
   const [tourIdx, setTourIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   // L0 visual config — locked in from the /lab playground
@@ -1173,6 +1415,11 @@ export default function LivingMap() {
   const trails = false;
   const trailLen = 1.15;
   const trailGlow = 0.5;
+
+  // clear any stale member highlight when the focused stage changes / closes
+  useEffect(() => {
+    setMemberHover(null);
+  }, [exploreFocus, mode]);
 
   const inTour = mode === "tour";
   const stop = TOUR_STOPS[tourIdx];
@@ -1269,9 +1516,13 @@ export default function LivingMap() {
           trailLen={trailLen}
           trailGlow={trailGlow}
           diveShift={inTour || isCompact ? 0 : DIVE_SHIFT}
-          diveDist={inTour ? 9 : DIVE_DIST}
+          diveDist={inTour ? 9 : isCompact ? DIVE_DIST : L1_DIST}
           diveLift={!inTour && isCompact ? 1.15 : 0}
           freeHome={EXPLORE_FREE_ORBIT && !inTour && focusId === null}
+          showMembers={!inTour && !isCompact}
+          memberHover={memberHover}
+          onMemberHover={setMemberHover}
+          onOpenNode={(id) => navigate(`/n/${id}`)}
           onUserInteract={() => {
             if (inTour) setPlaying(false);
           }}
@@ -1472,14 +1723,21 @@ export default function LivingMap() {
                     <div className="space-y-1.5">
                       {focusRegion.node.children.map((c) => {
                         const hasAsset = !!ringNodeById(c.id);
+                        const highlighted = memberHover === c.id;
+                        const accentCol = c.accent ?? "#5fa8ff";
                         return (
                           <button
                             key={c.id}
                             disabled={!hasAsset}
                             onClick={() => hasAsset && navigate(`/n/${c.id}`)}
-                            className={`flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left transition ${
-                              hasAsset ? "hover:border-white/25 hover:bg-white/[0.07]" : "opacity-60"
+                            onMouseEnter={() => setMemberHover(c.id)}
+                            onMouseLeave={() => setMemberHover((h) => (h === c.id ? null : h))}
+                            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${
+                              highlighted
+                                ? "bg-white/[0.09]"
+                                : `border-white/10 bg-white/[0.03] ${hasAsset ? "hover:border-white/25 hover:bg-white/[0.07]" : "opacity-60"}`
                             }`}
+                            style={highlighted ? { borderColor: `${accentCol}80` } : undefined}
                           >
                             <span>
                               <span className="block text-[13px] font-medium text-slate-200">{c.title}</span>
