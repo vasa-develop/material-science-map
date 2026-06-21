@@ -484,10 +484,10 @@ export function DatabaseMapScene() {
       rate={1}
       glow={1}
       spin
-      itemType="crystals"
+      itemType="formulas"
       pulseTint={false}
       showFill={false}
-      showLogos
+      showLogos={false}
       countEl={countEl}
     />
   );

@@ -30,6 +30,8 @@ export interface RingNode {
   lift: number;
   /** if set, slowly orbit the whole scene */
   autoSpin?: number;
+  /** optional override for the node's L1 glow/label accent (else uses node.accent) */
+  accent?: string;
   node: MapNode;
 }
 
@@ -39,7 +41,7 @@ export interface RingNode {
  */
 export const RING_NODES: RingNode[] = [
   { id: "databases", stage: "discover", Scene: DatabaseMapScene, Full: DatabaseStackAsset, scale: 0.5, lift: 0.95, node: meta("databases") },
-  { id: "dft", stage: "discover", Scene: DensityMapScene, Full: DensityAsset, scale: 0.52, lift: 1.1, node: meta("dft") },
+  { id: "dft", stage: "discover", Scene: DensityMapScene, Full: DensityAsset, scale: 0.52, lift: 1.1, accent: "#f97316", node: meta("dft") },
   { id: "mlip", stage: "discover", Scene: MlipMapScene, Full: MlipAsset, scale: 0.42, lift: 0.95, node: meta("mlip") },
   { id: "hts", stage: "discover", Scene: HtsFunnelMapScene, Full: HtsFunnelAsset, scale: 0.24, lift: 1.1, node: meta("hts") },
   { id: "generative", stage: "discover", Scene: GenerativeMapScene, Full: GenerativeAsset, scale: 0.42, lift: 1.1, node: meta("generative") },

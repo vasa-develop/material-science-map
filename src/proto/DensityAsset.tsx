@@ -58,6 +58,12 @@ const PALETTES: Record<string, Stop[]> = {
     [0.7, [0.85, 0.12, 0.25]],
     [1.0, [0.3, 0.05, 0.2]],
   ],
+  orange: [
+    [0.0, [1.0, 0.88, 0.5]],
+    [0.32, [1.0, 0.62, 0.16]],
+    [0.66, [1.0, 0.44, 0.06]],
+    [1.0, [0.95, 0.3, 0.02]],
+  ],
 };
 
 function sampleColor(t: number, stops: Stop[]): [number, number, number] {
@@ -192,7 +198,7 @@ function DensityCloud({
 
 /** Lights + content only, for embedding as a node in the shared-canvas map. */
 export function DensityMapScene() {
-  return <DensityCloud preset="flower" palette="spectrum" spin pointSize={0.02} />;
+  return <DensityCloud preset="flower" palette="orange" spin pointSize={0.02} />;
 }
 
 export default function DensityAsset() {

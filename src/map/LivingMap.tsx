@@ -734,7 +734,7 @@ function MemberNode({
   onOut: () => void;
   onOpen: () => void; // no-op for not-yet-built ("soon") methods
 }) {
-  const accent = node.accent ?? "#5fa8ff";
+  const accent = ring?.accent ?? node.accent ?? "#5fa8ff";
   const accentCol = useMemo(() => new THREE.Color(accent), [accent]);
   const halo = useMemo(() => glowTex(), []);
   const hasAsset = !!ring;
