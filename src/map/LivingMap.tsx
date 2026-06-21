@@ -70,6 +70,21 @@ const regionByIdL0 = (id: string): RegionVis | undefined => L0_REGIONS.find((r) 
 // region ground positions (x, z), aligned with L0_REGIONS order.
 const POS: [number, number][] = L0_REGIONS.map((r) => r.pos);
 
+// World position of a member node on its stage's bloomed ring (matches the layout
+// in RegionMembers). Used by the camera to deep-zoom onto a single member at L2.
+function memberWorldPos(region: RegionVis, memberId: string): THREE.Vector3 | null {
+  const members = region.node.children ?? [];
+  const i = members.findIndex((m) => m.id === memberId);
+  if (i < 0) return null;
+  const ang = L1_RING_BASE + (i / members.length) * Math.PI * 2;
+  const lift = ringNodeById(memberId)?.lift ?? 0.85;
+  return new THREE.Vector3(
+    region.pos[0] + Math.cos(ang) * L1_RING_R,
+    lift,
+    region.pos[1] + Math.sin(ang) * L1_RING_R
+  );
+}
+
 const HOME_CAM = new THREE.Vector3(0, 16.5, -21);
 const HOME_TGT = new THREE.Vector3(0, 0.8, 2.8);
 
@@ -80,9 +95,22 @@ const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const SCREEN_RIGHT = new THREE.Vector3().crossVectors(WORLD_UP, ISO_DIR).normalize();
 const DIVE_DIST = 6.6;
 const L1_DIST = 15.5; // desktop dive distance when a stage blooms its member ring (needs room for the ring)
+const L1_DIST_MOBILE = 17; // phone dive distance for the bloomed ring (pulled back so the full ring fits the narrow portrait width)
+const L1_LIFT_MOBILE = 2.0; // push the bloomed ring up into the top half on phones so it clears the bottom sheet
 const L1_RING_R = 2.9; // ground radius of the member ring around the focused hero
+const L1_RING_BASE = Math.PI / 2; // first member biased toward camera-front (must match RegionMembers)
 const MEMBER_SCALE = 0.6; // shrink member mini-scenes (their RING_NODES scale is tuned for standalone/L2)
+
+// Path 2 — in-canvas L2 (deep-zoom onto a single member instead of routing to /n/:id).
+// Flip to false to fall back to the standalone /n/:id detail page.
+const L2_IN_CANVAS = true;
+const L2_DIST = 6.4; // desktop: close dive framing one member asset as a hero
+const L2_LIFT = 0.15;
+const L2_DIST_MOBILE = 7.6; // phone: a touch further so the asset + L2 panel coexist
+const L2_LIFT_MOBILE = 1.5; // lift the asset above the bottom-sheet L2 panel on phones
+const L2_FOCUS_SCALE = 1.35; // grow the focused member a little as it becomes the hero
 const DIVE_SHIFT = 1.5; // how far to push the region off-center toward screen-right (clears the left inspector panel while staying near center)
+const MOBILE_SHIFT = 0.8; // small nudge so the bloomed ring centers in the narrow portrait frame (its near side spreads left in perspective)
 // Master switch for user camera control. When true, Explore lets the user drag to
 // orbit + scroll to zoom (overview releases to free orbit; re-centering only when
 // leaving a focused stage). When false, the camera is fully curated/locked and the
@@ -721,6 +749,8 @@ function MemberNode({
   interactive,
   hovered,
   anyHover,
+  l2Active,
+  isL2,
   onOver,
   onOut,
   onOpen,
@@ -732,6 +762,8 @@ function MemberNode({
   interactive: boolean; // false in Tour: ring is a display-only showcase
   hovered: boolean;
   anyHover: boolean;
+  l2Active: boolean; // some member in this stage is deep-zoomed (L2) → collapse the others
+  isL2: boolean; // this node is the deep-zoomed (L2) hero
   onOver: () => void;
   onOut: () => void;
   onOpen: () => void; // no-op for not-yet-built ("soon") methods
@@ -748,19 +780,24 @@ function MemberNode({
   const haloRef = useRef<THREE.Sprite>(null);
   const discRef = useRef<THREE.MeshBasicMaterial>(null);
   const cur = useRef(1);
-  const dim = anyHover && !hovered;
+  // a sibling of the L2 hero: collapse away so the focused node reads alone
+  const collapsed = l2Active && !isL2;
+  const dim = !collapsed && anyHover && !hovered;
 
   useFrame(() => {
-    const tS = hovered ? 1.15 : dim ? 0.92 : 1;
+    const tS = collapsed ? 0.0001 : isL2 ? L2_FOCUS_SCALE : hovered ? 1.15 : dim ? 0.92 : 1;
     cur.current += (tS - cur.current) * 0.15;
-    if (assetRef.current) assetRef.current.scale.setScalar(baseScale * cur.current);
+    if (assetRef.current) {
+      assetRef.current.scale.setScalar(baseScale * cur.current);
+      assetRef.current.visible = cur.current > 0.01;
+    }
     if (haloRef.current) {
       const m = haloRef.current.material as THREE.SpriteMaterial;
-      const t = hovered ? 0.85 : dim ? 0.12 : 0.42;
+      const t = collapsed ? 0 : hovered || isL2 ? 0.85 : dim ? 0.12 : 0.42;
       m.opacity += (t - m.opacity) * 0.15;
     }
     if (discRef.current) {
-      const t = hovered ? 0.62 : dim ? 0.18 : 0.4;
+      const t = collapsed ? 0 : hovered || isL2 ? 0.62 : dim ? 0.18 : 0.4;
       discRef.current.opacity += (t - discRef.current.opacity) * 0.15;
     }
   });
@@ -806,25 +843,26 @@ function MemberNode({
       <mesh
         position={[0, lift, 0]}
         visible={false}
-        onPointerOver={!interactive ? undefined : (e) => {
+        onPointerOver={!interactive || collapsed ? undefined : (e) => {
           e.stopPropagation();
           onOver();
           if (hasAsset) document.body.style.cursor = "pointer";
         }}
-        onPointerOut={!interactive ? undefined : () => {
+        onPointerOut={!interactive || collapsed ? undefined : () => {
           onOut();
           document.body.style.cursor = "default";
         }}
-        onClick={interactive && hasAsset ? (e) => { e.stopPropagation(); onOpen(); } : undefined}
+        onClick={interactive && hasAsset && !collapsed ? (e) => { e.stopPropagation(); onOpen(); } : undefined}
       >
         <boxGeometry args={[2, 2.4, 2]} />
       </mesh>
 
-      {/* label — fixed screen size (no distanceFactor) for predictable legibility */}
+      {/* label — fixed screen size (no distanceFactor) for predictable legibility.
+          Hidden for the L2 hero (the L2 panel names it) and for collapsed siblings. */}
       <Html position={[0, lift + 1.15, 0]} center style={{ pointerEvents: "none" }} zIndexRange={[20, 0]}>
         <div
           className="flex flex-col items-center gap-0.5 whitespace-nowrap text-center"
-          style={{ opacity: dim ? 0.5 : 1, transition: "opacity 0.3s ease" }}
+          style={{ opacity: collapsed || isL2 ? 0 : dim ? 0.5 : 1, transition: "opacity 0.3s ease" }}
         >
           <span className="text-[11px] font-semibold text-white drop-shadow">{node.title}</span>
           <span className="text-[8px] font-semibold uppercase tracking-[0.18em]" style={{ color: hasAsset ? accent : "#64748b" }}>
@@ -846,6 +884,7 @@ function RegionMembers({
   show,
   interactive,
   hoverId,
+  l2Focus,
   onHover,
   onOpenNode,
 }: {
@@ -853,6 +892,7 @@ function RegionMembers({
   show: boolean;
   interactive: boolean;
   hoverId: string | null;
+  l2Focus: string | null; // member id deep-zoomed at L2 (only meaningful for the focused stage)
   onHover: (id: string | null) => void;
   onOpenNode: (id: string) => void;
 }) {
@@ -892,7 +932,8 @@ function RegionMembers({
 
   // distribute members on a ring, biased so the first sits toward the camera-front
   const N = members.length;
-  const base = Math.PI / 2;
+  const base = L1_RING_BASE;
+  const l2Active = l2Focus != null && members.some((m) => m.id === l2Focus);
 
   return (
     <group ref={groupRef} position={[cx, 0, cz]}>
@@ -911,6 +952,8 @@ function RegionMembers({
             interactive={interactive}
             hovered={hoverId === m.id}
             anyHover={hoverId !== null}
+            l2Active={l2Active}
+            isL2={m.id === l2Focus}
             onOver={() => onHover(m.id)}
             onOut={() => onHover(null)}
             onOpen={() => onOpenNode(m.id)}
@@ -1112,7 +1155,7 @@ function Conduits({
   );
 }
 
-function CameraRig({ focus, focusId, shift, dist, lift, freeHome }: { focus: THREE.Vector3 | null; focusId: string | null; shift: number; dist: number; lift: number; freeHome: boolean }) {
+function CameraRig({ focus, focusKey, shift, dist, lift, freeHome }: { focus: THREE.Vector3 | null; focusKey: string; shift: number; dist: number; lift: number; freeHome: boolean }) {
   const { camera } = useThree();
   const three = useThree() as unknown as { controls?: { target: THREE.Vector3; update: () => void; enabled: boolean } };
   const goalPos = useMemo(() => new THREE.Vector3(), []);
@@ -1120,10 +1163,11 @@ function CameraRig({ focus, focusId, shift, dist, lift, freeHome }: { focus: THR
   const arrived = useRef(false);
   const homed = useRef(false);
 
+  // re-fly whenever the target changes — stage (L1) or member (L2)
   useEffect(() => {
     arrived.current = false;
     homed.current = false;
-  }, [focusId]);
+  }, [focusKey]);
 
   useFrame(() => {
     const c = three.controls;
@@ -1195,6 +1239,7 @@ function World({
   membersInteractive,
   memberHover,
   onMemberHover,
+  nodeFocus,
   onOpenNode,
   onUserInteract,
 }: {
@@ -1225,6 +1270,7 @@ function World({
   membersInteractive: boolean;
   memberHover: string | null;
   onMemberHover: (id: string | null) => void;
+  nodeFocus: string | null;
   onOpenNode: (id: string) => void;
   onUserInteract: () => void;
 }) {
@@ -1238,8 +1284,13 @@ function World({
     if (!focusId) return null;
     const i = L0_REGIONS.findIndex((r) => r.id === focusId);
     if (i < 0) return null;
+    // L2: deep-zoom onto the focused member; otherwise frame the stage hero
+    if (nodeFocus) {
+      const mp = memberWorldPos(L0_REGIONS[i], nodeFocus);
+      if (mp) return mp;
+    }
     return new THREE.Vector3(POS[i][0], L0_REGIONS[i].heroLift, POS[i][1]);
-  }, [focusId]);
+  }, [focusId, nodeFocus]);
 
   return (
     <>
@@ -1295,6 +1346,7 @@ function World({
             show={focusId === region.id}
             interactive={membersInteractive}
             hoverId={memberHover}
+            l2Focus={focusId === region.id ? nodeFocus : null}
             onHover={onMemberHover}
             onOpenNode={onOpenNode}
           />
@@ -1314,7 +1366,7 @@ function World({
         target={[0, 0.8, 2.8]}
         onStart={onUserInteract}
       />
-      <CameraRig focus={focusPos} focusId={focusId} shift={diveShift} dist={diveDist} lift={diveLift} freeHome={freeHome} />
+      <CameraRig focus={focusPos} focusKey={`${focusId ?? "none"}|${nodeFocus ?? "none"}`} shift={diveShift} dist={diveDist} lift={diveLift} freeHome={freeHome} />
     </>
   );
 }
@@ -1324,6 +1376,14 @@ const REGION_TAG: Record<string, string> = {
   synthesis: "Stage ② · Synthesis",
   characterize: "Stage ③ · Characterization",
 };
+
+// L2 method schema (mirrors the standalone /n/:id detail page)
+const FIELD_META = [
+  { key: "why", label: "Why it exists", tone: "#34d399" },
+  { key: "where", label: "Where it fits", tone: "#38bdf8" },
+  { key: "removes", label: "Bottleneck it removes", tone: "#a78bfa" },
+  { key: "creates", label: "New bottleneck it creates", tone: "#f87171" },
+] as const;
 
 interface TourStop {
   /** which region the camera frames; null = the whole-loop overview */
@@ -1422,6 +1482,8 @@ export default function LivingMap() {
   const [mode, setMode] = useState<Mode>("tour");
   const [hover, setHover] = useState<string | null>(null);
   const [exploreFocus, setExploreFocus] = useState<string | null>(null);
+  // L2 deep-zoom: the member node opened in-canvas within the focused stage (Path 2)
+  const [nodeFocus, setNodeFocus] = useState<string | null>(null);
   // shared hover for L1 members so the inspector list ↔ 3D ring cross-highlight
   const [memberHover, setMemberHover] = useState<string | null>(null);
   const [tourIdx, setTourIdx] = useState(0);
@@ -1442,10 +1504,26 @@ export default function LivingMap() {
   const trailLen = 1.15;
   const trailGlow = 0.5;
 
-  // clear any stale member highlight when the focused stage changes / closes
+  // clear any stale member highlight + L2 deep-zoom when the focused stage changes / closes
   useEffect(() => {
     setMemberHover(null);
+    setNodeFocus(null);
   }, [exploreFocus, mode]);
+
+  // open a member: deep-zoom in-canvas (Path 2) or fall back to the /n/:id page
+  const openNode = (id: string) => {
+    if (L2_IN_CANVAS) setNodeFocus(id);
+    else navigate(`/n/${id}`);
+  };
+
+  // step down one level: L2 (member) → L1 (stage) → L0 (overview)
+  const stepBack = () => {
+    if (nodeFocus) setNodeFocus(null);
+    else setExploreFocus(null);
+  };
+  // latest value for the (stable) key handler closure
+  const nodeFocusRef = useRef(nodeFocus);
+  nodeFocusRef.current = nodeFocus;
 
   const inTour = mode === "tour";
   const stop = TOUR_STOPS[tourIdx];
@@ -1454,6 +1532,8 @@ export default function LivingMap() {
   const focusActive = focusId !== null;
   const exploreFocusActive = !inTour && exploreFocus !== null;
   const focusRegion = !inTour && exploreFocus ? regionByIdL0(exploreFocus) : undefined;
+  // L2: the member node currently deep-zoomed in-canvas (within the focused stage)
+  const focusNode = focusRegion && nodeFocus ? (focusRegion.node.children ?? []).find((c) => c.id === nodeFocus) : undefined;
 
   // auto-advance the tour
   useEffect(() => {
@@ -1473,7 +1553,9 @@ export default function LivingMap() {
     const order = L0_REGIONS.map((r) => r.id);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setExploreFocus(null);
+        // step down one level (L2 → L1 → L0)
+        if (nodeFocusRef.current) setNodeFocus(null);
+        else setExploreFocus(null);
         return;
       }
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
@@ -1518,7 +1600,7 @@ export default function LivingMap() {
         camera={{ position: HOME_CAM.toArray(), fov: 38 }}
         dpr={isCompact ? [1, 1.5] : [1, 2]}
         gl={{ antialias: true }}
-        onPointerMissed={() => !inTour && setExploreFocus(null)}
+        onPointerMissed={() => !inTour && stepBack()}
       >
         <FovFit />
         <World
@@ -1541,18 +1623,31 @@ export default function LivingMap() {
           trails={trails}
           trailLen={trailLen}
           trailGlow={trailGlow}
-          diveShift={inTour || isCompact ? 0 : DIVE_SHIFT}
-          // desktop frames the member ring (L1_DIST) in both modes; compact keeps
-          // hero framing (members are off on phones).
-          diveDist={!isCompact ? L1_DIST : inTour ? 9 : DIVE_DIST}
-          // lift the cluster a touch in desktop Tour so the ring clears the caption bar.
-          diveLift={!isCompact ? (inTour ? 0.8 : 0) : inTour ? 0 : 1.15}
+          // L2 (member deep-zoom) centers the single asset; L1 nudges right (mobile)
+          // or off-center (desktop, room for the side panel).
+          diveShift={inTour || nodeFocus ? 0 : isCompact ? MOBILE_SHIFT : DIVE_SHIFT}
+          // L2 dives close onto one member. L1: desktop frames the member ring
+          // (L1_DIST); phones bloom in Explore (L1_DIST_MOBILE) and keep Tour close (9).
+          diveDist={
+            nodeFocus
+              ? isCompact ? L2_DIST_MOBILE : L2_DIST
+              : !isCompact ? L1_DIST : inTour ? 9 : L1_DIST_MOBILE
+          }
+          // lift the target so content clears the chrome (caption bar / bottom sheet).
+          diveLift={
+            nodeFocus
+              ? isCompact ? L2_LIFT_MOBILE : L2_LIFT
+              : !isCompact ? (inTour ? 0.8 : 0) : inTour ? 0 : L1_LIFT_MOBILE
+          }
           freeHome={EXPLORE_FREE_ORBIT && !inTour && focusId === null}
-          showMembers={!isCompact}
+          // members bloom on desktop (both modes) and on phones in Explore; mobile
+          // Tour stays hero-only to avoid clutter on the small screen.
+          showMembers={!isCompact || !inTour}
           membersInteractive={!inTour}
           memberHover={memberHover}
           onMemberHover={setMemberHover}
-          onOpenNode={(id) => navigate(`/n/${id}`)}
+          nodeFocus={nodeFocus}
+          onOpenNode={openNode}
           onUserInteract={() => {
             if (inTour) setPlaying(false);
           }}
@@ -1694,22 +1789,26 @@ export default function LivingMap() {
         )}
       </AnimatePresence>
 
-      {/* in-place region inspector — Explore mode, alongside the zoomed-in hero */}
+      {/* context-aware back: steps down one level (L2 → L1 → L0) */}
       <AnimatePresence>
         {focusRegion && (
-          <>
-            <motion.button
-              key="back"
-              onClick={() => setExploreFocus(null)}
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.35, ease: EASE }}
-              className="absolute left-6 top-5 z-10 rounded-full border border-white/15 bg-[rgba(8,12,22,0.7)] px-3.5 py-1.5 text-sm text-slate-200 backdrop-blur-md transition hover:bg-white/10"
-            >
-              ← Back to map
-            </motion.button>
+          <motion.button
+            key="back"
+            onClick={stepBack}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.35, ease: EASE }}
+            className="absolute left-6 top-5 z-10 rounded-full border border-white/15 bg-[rgba(8,12,22,0.7)] px-3.5 py-1.5 text-sm text-slate-200 backdrop-blur-md transition hover:bg-white/10"
+          >
+            {nodeFocus ? `← ${focusRegion.node.title}` : "← Back to map"}
+          </motion.button>
+        )}
+      </AnimatePresence>
 
+      {/* L1 in-place region inspector — Explore mode, alongside the zoomed-in hero */}
+      <AnimatePresence>
+        {focusRegion && !nodeFocus && (
             <motion.div
               key={focusRegion.id}
               initial={{ opacity: 0, y: 28 }}
@@ -1719,7 +1818,7 @@ export default function LivingMap() {
               className="absolute inset-x-3 bottom-3 z-10 sm:inset-x-auto sm:bottom-auto sm:left-6 sm:top-1/2 sm:w-[min(400px,40vw)] sm:-translate-y-1/2"
             >
               <div
-                className="max-h-[52vh] overflow-y-auto rounded-2xl border bg-[rgba(7,10,18,0.82)] p-4 backdrop-blur-xl sm:max-h-[80vh] sm:bg-[rgba(7,10,18,0.74)] sm:p-5"
+                className="max-h-[40vh] overflow-y-auto rounded-2xl border bg-[rgba(7,10,18,0.82)] p-4 backdrop-blur-xl sm:max-h-[80vh] sm:bg-[rgba(7,10,18,0.74)] sm:p-5"
                 style={{ borderColor: `${focusRegion.node.accent ?? "#5fa8ff"}40` }}
               >
                 <div className="flex items-center gap-2">
@@ -1759,7 +1858,7 @@ export default function LivingMap() {
                           <button
                             key={c.id}
                             disabled={!hasAsset}
-                            onClick={() => hasAsset && navigate(`/n/${c.id}`)}
+                            onClick={() => hasAsset && openNode(c.id)}
                             onMouseEnter={() => setMemberHover(c.id)}
                             onMouseLeave={() => setMemberHover((h) => (h === c.id ? null : h))}
                             className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${
@@ -1789,7 +1888,61 @@ export default function LivingMap() {
                 <div className="mt-5 text-[11px] text-slate-500">Esc · click empty space to exit</div>
               </div>
             </motion.div>
-          </>
+        )}
+      </AnimatePresence>
+
+      {/* L2 in-canvas method detail — Explore mode, alongside the deep-zoomed asset */}
+      <AnimatePresence>
+        {focusNode && (
+          <motion.div
+            key={focusNode.id}
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, x: 0, y: 0 }}
+            exit={{ opacity: 0, y: 28 }}
+            transition={{ duration: 0.5, ease: EASE }}
+            className="absolute inset-x-3 bottom-3 z-10 sm:inset-x-auto sm:bottom-auto sm:left-6 sm:top-1/2 sm:w-[min(420px,42vw)] sm:-translate-y-1/2"
+          >
+            <div
+              className="max-h-[44vh] overflow-y-auto rounded-2xl border bg-[rgba(7,10,18,0.84)] p-4 backdrop-blur-xl sm:max-h-[82vh] sm:bg-[rgba(7,10,18,0.76)] sm:p-5"
+              style={{ borderColor: `${focusNode.accent ?? "#5fa8ff"}45` }}
+            >
+              <div
+                className="text-[10px] font-semibold uppercase tracking-[0.22em]"
+                style={{ color: focusNode.accent ?? "#5fa8ff" }}
+              >
+                {REGION_TAG[focusRegion!.id] ?? "Method"}
+              </div>
+              <h2 className="mt-1.5 text-2xl font-semibold leading-tight text-white sm:text-3xl">{focusNode.title}</h2>
+              {focusNode.subtitle && <div className="mt-0.5 text-sm text-slate-400">{focusNode.subtitle}</div>}
+              {focusNode.essence && (
+                <p className="mt-3 text-[13px] leading-snug text-slate-300">{focusNode.essence}</p>
+              )}
+
+              {focusNode.fields && (
+                <div className="mt-4 space-y-2">
+                  {FIELD_META.filter((m) => focusNode.fields?.[m.key]).map((m) => (
+                    <div key={m.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: m.tone }}>
+                        {m.label}
+                      </div>
+                      <p className="mt-1 text-[12.5px] leading-snug text-slate-300">{focusNode.fields[m.key]}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-4 flex items-center justify-between">
+                <button
+                  onClick={() => navigate(`/n/${focusNode.id}`)}
+                  className="rounded-lg border border-white/15 bg-white/[0.04] px-3 py-1.5 text-[12px] text-slate-200 transition hover:bg-white/10"
+                  style={{ borderColor: `${focusNode.accent ?? "#5fa8ff"}55` }}
+                >
+                  Full view ↗
+                </button>
+                <span className="text-[11px] text-slate-500">Esc · back to stage</span>
+              </div>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
