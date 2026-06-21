@@ -1396,7 +1396,7 @@ interface TourStop {
   /** which region the camera frames; null = the whole-loop overview */
   focusId: string | null;
   /** zoom depth this stop sits at: 0 = overview/loop, 1 = stage (blooms its member
-   *  ring), 2 = an individual method (reserved for a future in-canvas L2 dive). */
+   *  ring), 2 = an individual method (in-canvas L2 deep-zoom onto `nodeId`). */
   level: 0 | 1 | 2;
   /** the specific member node this stop dives into (only used at level 2) */
   nodeId?: string;
@@ -1406,9 +1406,9 @@ interface TourStop {
   accent: string;
 }
 
-// The guided narrative: establishing drift → the three stages → loop close.
-// Stage stops (level 1) bloom that stage's member ring as the camera arrives;
-// level-2 (per-method) stops can be inserted later for a deeper guided dive.
+// The guided narrative: establishing drift → each stage (ring bloom) → a featured
+// method within it (L2 deep-zoom) → loop close. Stage stops (level 1) bloom the
+// member ring; the following level-2 stop dives into one emblematic method.
 const TOUR_STOPS: TourStop[] = [
   {
     focusId: null,
@@ -1428,6 +1428,15 @@ const TOUR_STOPS: TourStop[] = [
     accent: regionById("discover")?.node.accent ?? "#38bdf8",
   },
   {
+    focusId: "discover",
+    level: 2,
+    nodeId: "dft",
+    title: "↳ First-Principles / DFT",
+    caption: ringNodeById("dft")?.node.essence ?? "",
+    dwell: 7000,
+    accent: ringNodeById("dft")?.accent ?? ringNodeById("dft")?.node.accent ?? "#f97316",
+  },
+  {
     focusId: "synthesis",
     level: 1,
     title: "② Synthesis",
@@ -1436,12 +1445,30 @@ const TOUR_STOPS: TourStop[] = [
     accent: regionById("synthesis")?.node.accent ?? "#fbbf24",
   },
   {
+    focusId: "synthesis",
+    level: 2,
+    nodeId: "syn-sdl",
+    title: "↳ Self-Driving Labs",
+    caption: ringNodeById("syn-sdl")?.node.essence ?? "",
+    dwell: 7000,
+    accent: ringNodeById("syn-sdl")?.accent ?? ringNodeById("syn-sdl")?.node.accent ?? "#fbbf24",
+  },
+  {
     focusId: "characterize",
     level: 1,
     title: "③ Characterization",
     caption: regionById("characterize")?.node.essence ?? "",
     dwell: 7500,
     accent: regionById("characterize")?.node.accent ?? "#f472b6",
+  },
+  {
+    focusId: "characterize",
+    level: 2,
+    nodeId: "char-diffraction",
+    title: "↳ Diffraction",
+    caption: ringNodeById("char-diffraction")?.node.essence ?? "",
+    dwell: 7000,
+    accent: ringNodeById("char-diffraction")?.accent ?? ringNodeById("char-diffraction")?.node.accent ?? "#f472b6",
   },
   {
     focusId: null,
@@ -1536,6 +1563,8 @@ export default function LivingMap() {
   const stop = TOUR_STOPS[tourIdx];
   // the camera target: tour-driven in Tour mode, click-driven in Explore mode
   const focusId = inTour ? stop.focusId : exploreFocus;
+  // the deep-zoomed (L2) member: tour-driven at a level-2 stop, else click-driven
+  const l2Node = inTour ? (stop.level === 2 ? stop.nodeId ?? null : null) : nodeFocus;
   const focusActive = focusId !== null;
   const exploreFocusActive = !inTour && exploreFocus !== null;
   const focusRegion = !inTour && exploreFocus ? regionByIdL0(exploreFocus) : undefined;
@@ -1638,28 +1667,29 @@ export default function LivingMap() {
           trailGlow={trailGlow}
           // L2 (member deep-zoom) centers the single asset; L1 nudges right (mobile)
           // or off-center (desktop, room for the side panel).
-          diveShift={inTour || nodeFocus ? 0 : isCompact ? MOBILE_SHIFT : DIVE_SHIFT}
+          diveShift={inTour || l2Node ? 0 : isCompact ? MOBILE_SHIFT : DIVE_SHIFT}
           // L2 dives close onto one member. L1: desktop frames the member ring
           // (L1_DIST); phones bloom in Explore (L1_DIST_MOBILE) and keep Tour close (9).
           diveDist={
-            nodeFocus
+            l2Node
               ? isCompact ? L2_DIST_MOBILE : L2_DIST
               : !isCompact ? L1_DIST : inTour ? 9 : L1_DIST_MOBILE
           }
           // lift the target so content clears the chrome (caption bar / bottom sheet).
           diveLift={
-            nodeFocus
+            l2Node
               ? isCompact ? L2_LIFT_MOBILE : L2_LIFT
               : !isCompact ? (inTour ? 0.8 : 0) : inTour ? 0 : L1_LIFT_MOBILE
           }
           freeHome={EXPLORE_FREE_ORBIT && !inTour && focusId === null}
           // members bloom on desktop (both modes) and on phones in Explore; mobile
-          // Tour stays hero-only to avoid clutter on the small screen.
-          showMembers={!isCompact || !inTour}
+          // Tour stays hero-only — except at a Tour L2 stop, where the ring mounts so
+          // the single focused member can render (siblings stay collapsed).
+          showMembers={!isCompact || !inTour || l2Node !== null}
           membersInteractive={!inTour}
           memberHover={memberHover}
           onMemberHover={setMemberHover}
-          nodeFocus={nodeFocus}
+          nodeFocus={l2Node}
           onOpenNode={openNode}
           onUserInteract={() => {
             if (inTour) setPlaying(false);
