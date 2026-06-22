@@ -1533,6 +1533,16 @@ export default function LivingMap() {
   }, []);
 
   const [showMobileNote, setShowMobileNote] = useState(true);
+  // First-visit framing: a one-time welcome card. Skipped on deep-links (the
+  // visitor came for specific content) and after it's been seen once.
+  const [showIntro, setShowIntro] = useState(() => {
+    if (typeof window === "undefined" || initialFocus) return false;
+    try {
+      return !localStorage.getItem("mm_seen_intro");
+    } catch {
+      return false;
+    }
+  });
   const [mode, setMode] = useState<Mode>(initialFocus ? "explore" : "tour");
   const [hover, setHover] = useState<string | null>(null);
   const [exploreFocus, setExploreFocus] = useState<string | null>(initialFocus?.regionId ?? null);
@@ -1693,6 +1703,55 @@ export default function LivingMap() {
     else setExploreFocus(null); // free orbit on entering Explore; tour resumes from where it left off
   };
 
+  // ---- first-visit intro handlers ----
+  const markIntroSeen = () => {
+    try {
+      localStorage.setItem("mm_seen_intro", "1");
+    } catch {
+      /* private mode / blocked storage — non-fatal */
+    }
+  };
+  const startTour = () => {
+    markIntroSeen();
+    setShowIntro(false);
+    setHover(null);
+    setMode("tour");
+    setTourIdx(0);
+    setPlaying(true);
+  };
+  const startExplore = () => {
+    markIntroSeen();
+    setShowIntro(false);
+    setHover(null);
+    setMode("explore");
+    setExploreFocus(null);
+    setPlaying(false);
+  };
+  // X / Esc / backdrop: dismiss but resume whatever was running behind it.
+  const closeIntro = () => {
+    markIntroSeen();
+    setShowIntro(false);
+    if (mode === "tour") setPlaying(true);
+  };
+
+  // Pause the auto-tour while the intro is up so it doesn't advance behind the card.
+  useEffect(() => {
+    if (showIntro) setPlaying(false);
+  }, [showIntro]);
+
+  // While the intro is open, swallow scene key-nav and let Esc close the card.
+  // Capture phase + stopPropagation keeps the global arrow/Esc handler from firing.
+  useEffect(() => {
+    if (!showIntro) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.stopPropagation();
+      if (e.key === "Escape") closeIntro();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showIntro]);
+
   // user clicked a stage hero: focus it. In Tour this takes over — we hand control
   // to the user and fly straight into the stage they aimed at.
   const handleSelectRegion = (id: string) => {
@@ -1815,6 +1874,15 @@ export default function LivingMap() {
         </div>
       </div>
 
+      {/* about / reopen the first-visit framing */}
+      <button
+        onClick={() => setShowIntro(true)}
+        aria-label="What is this?"
+        className={`absolute right-5 top-4 z-20 grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-[rgba(8,12,22,0.72)] text-sm text-slate-300 backdrop-blur-md transition hover:text-white ${chromeFade(!exploreFocusActive)}`}
+      >
+        ?
+      </button>
+
       {/* best-on-desktop nudge (compact screens only, dismissible) */}
       {isCompact && showMobileNote && (
         <div className="absolute left-1/2 top-[68px] z-30 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-[rgba(8,12,22,0.82)] px-3 py-1.5 text-[11px] text-slate-300 backdrop-blur-md">
@@ -1843,6 +1911,79 @@ export default function LivingMap() {
       >
         made by vasa
       </a>
+
+      {/* ---- first-visit framing: one-time welcome card ---- */}
+      <AnimatePresence>
+        {showIntro && (
+          <motion.div
+            key="intro"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3, ease: EASE }}
+            className="absolute inset-0 z-[2147483000] flex items-center justify-center p-5"
+          >
+            <div
+              className="absolute inset-0 bg-[rgba(3,5,12,0.9)] backdrop-blur-md"
+              onClick={closeIntro}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              transition={{ duration: 0.4, ease: EASE }}
+              className="relative w-[min(440px,92vw)] rounded-2xl border border-white/10 bg-[rgba(9,13,22,0.94)] p-6 shadow-2xl backdrop-blur-xl"
+            >
+              <button
+                onClick={closeIntro}
+                aria-label="Close"
+                className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full text-slate-500 transition hover:text-white"
+              >
+                ×
+              </button>
+
+              <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-sky-300">
+                Materials Science Map
+              </div>
+              <h2 className="mt-1.5 text-xl font-semibold text-white">How new materials get made</h2>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-slate-300">
+                An interactive map of the materials loop — <span className="text-slate-100">discover</span> what
+                to make, <span className="text-slate-100">synthesize</span> it, then{" "}
+                <span className="text-slate-100">characterize</span> what you made, feeding the truth back to
+                discovery.
+              </p>
+
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <i className="h-2 w-2 rounded-full" style={{ background: "#38bdf8" }} /> Discover
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <i className="h-2 w-2 rounded-full" style={{ background: "#fbbf24" }} /> Synthesize
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <i className="h-2 w-2 rounded-full" style={{ background: "#f472b6" }} /> Characterize
+                </span>
+                <span className="text-slate-500">✦ click anything to dive in</span>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
+                <button
+                  onClick={startTour}
+                  className="w-full whitespace-nowrap rounded-xl bg-sky-500/90 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-400 sm:flex-1"
+                >
+                  ▶ Take the guided tour
+                </button>
+                <button
+                  onClick={startExplore}
+                  className="w-full whitespace-nowrap rounded-xl border border-white/15 px-4 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 sm:w-auto"
+                >
+                  Explore on my own
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ---- Tour overlay: caption + transport controls ---- */}
       <AnimatePresence>
