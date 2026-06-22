@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as THREE from "three";
 import { regionById, ringNodeById, type RegionVis, type RingNode } from "./ringNodes";
+import { applyMeta, defaultMeta, nodePageMeta, stageStateMeta } from "../lib/seo";
 import type { MapNode } from "../data/types";
 import { CrucibleMapScene } from "../proto/CrucibleAsset";
 import { CharacterizationMapScene } from "../proto/CharacterizationAsset";
@@ -1519,10 +1520,15 @@ export default function LivingMap() {
   // Returning from a sub-step page (/n/:id) lands here as /?focus=<id> so the map
   // re-opens already deep-zoomed onto that sub-step — keeping navigation coherent.
   const initialFocus = useMemo(() => {
-    const id = new URLSearchParams(location.search).get("focus");
-    if (!id || !ringNodeById(id)) return null;
-    const region = L0_REGIONS.find((r) => (r.node.children ?? []).some((c) => c.id === id));
-    return region ? { regionId: region.id, nodeId: id } : null;
+    const params = new URLSearchParams(location.search);
+    const focus = params.get("focus");
+    if (focus && ringNodeById(focus)) {
+      const region = L0_REGIONS.find((r) => (r.node.children ?? []).some((c) => c.id === focus));
+      if (region) return { regionId: region.id, nodeId: focus as string | null };
+    }
+    const stage = params.get("stage");
+    if (stage && regionById(stage)) return { regionId: stage, nodeId: null as string | null };
+    return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1569,11 +1575,31 @@ export default function LivingMap() {
     else setNodeFocus(null);
   }, [exploreFocus, mode]);
 
-  // tidy the address bar back to "/" once the deep-link focus has been consumed
+  // Keep the address bar + document head in sync with the current map view, so any
+  // state is a real shareable link with the right title/preview. A focused node's
+  // canonical points at its standalone /n/:id page; tour/overview reset to "/".
   useEffect(() => {
-    if (initialFocus) navigate("/", { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    let search = "";
+    let meta = defaultMeta();
+    if (mode === "explore" && nodeFocus) {
+      const rn = ringNodeById(nodeFocus);
+      if (rn) {
+        search = `?focus=${nodeFocus}`;
+        meta = nodePageMeta(rn.node);
+      }
+    } else if (mode === "explore" && exploreFocus) {
+      const rg = regionById(exploreFocus);
+      if (rg) {
+        search = `?stage=${exploreFocus}`;
+        meta = stageStateMeta(rg.node);
+      }
+    }
+    applyMeta(meta);
+    const target = `/${search}`;
+    if (window.location.pathname + window.location.search !== target) {
+      navigate(target, { replace: true });
+    }
+  }, [mode, exploreFocus, nodeFocus, navigate]);
 
   // open a member. In Tour this takes over: hand control to the user and dive
   // straight into the sub-step they clicked (Explore, focused stage, L2 deep-zoom).

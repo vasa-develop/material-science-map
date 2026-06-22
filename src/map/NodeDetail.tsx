@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ringNodeById } from "./ringNodes";
+import { applyMeta, defaultMeta, nodePageMeta } from "../lib/seo";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -29,6 +30,12 @@ export default function NodeDetail() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [backToMap]);
+
+  // reflect this node into the document head (title + OG/Twitter), restore on leave
+  useEffect(() => {
+    applyMeta(ring ? nodePageMeta(ring.node) : defaultMeta());
+    return () => applyMeta(defaultMeta());
+  }, [ring]);
 
   if (!ring) {
     return (
