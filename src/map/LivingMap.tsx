@@ -583,6 +583,7 @@ function RegionTotem({
   balance,
   recede,
   l2,
+  interactive,
   onOver,
   onOut,
   onSelect,
@@ -597,6 +598,7 @@ function RegionTotem({
   balance: boolean;
   recede: boolean;
   l2: boolean; // an L2 member is deep-zoomed → fade every stage hero out for a clean frame
+  interactive: boolean; // Explore: focused hero drops its hitbox so the back ring is hoverable
   onOver: () => void;
   onOut: () => void;
   onSelect: () => void;
@@ -694,19 +696,20 @@ function RegionTotem({
         </AutoSpin>
       </group>
 
-      {/* invisible hitbox for hover/click. While this stage is focused, drop all
-          handlers so R3F removes it from raycasting — otherwise this large central
-          box sits between the camera and the back half of the L1 member ring and
-          swallows their hover via stopPropagation. */}
+      {/* invisible hitbox for hover/click. In Explore, while this stage is focused,
+          drop all handlers so R3F removes it from raycasting — otherwise this large
+          central box sits between the camera and the back half of the L1 member ring
+          and swallows their hover via stopPropagation. In Tour the focused hero keeps
+          its hitbox so a click on the featured stage can take over into Explore. */}
       <mesh
         position={[0, region.heroLift, 0]}
         visible={false}
-        onPointerOver={focused ? undefined : (e) => {
+        onPointerOver={focused && interactive ? undefined : (e) => {
           e.stopPropagation();
           onOver();
         }}
-        onPointerOut={focused ? undefined : () => onOut()}
-        onClick={focused ? undefined : (e) => {
+        onPointerOut={focused && interactive ? undefined : () => onOut()}
+        onClick={focused && interactive ? undefined : (e) => {
           e.stopPropagation();
           onSelect();
         }}
@@ -1337,9 +1340,12 @@ function World({
           balance={balanceHeroes}
           recede={showMembers && focusId === region.id}
           l2={nodeFocus !== null}
-          onOver={() => interactive && !focusActive && setHover(region.id)}
+          interactive={interactive}
+          // heroes are clickable in both modes: in Explore they focus the stage;
+          // in Tour the same click takes over (parent switches to Explore + focuses).
+          onOver={() => !focusActive && setHover(region.id)}
           onOut={() => setHover(null)}
-          onSelect={() => interactive && onSelect(region.id)}
+          onSelect={() => onSelect(region.id)}
         />
       ))}
 
@@ -1579,7 +1585,10 @@ export default function LivingMap() {
   }, [inTour, playing, tourIdx, stop.dwell]);
 
   useEffect(() => {
-    document.body.style.cursor = hover && !inTour && !exploreFocusActive ? "pointer" : "default";
+    // Tour: the whole scene is clickable (click takes over into Explore), so invite
+    // it with a pointer cursor. Explore: pointer only when hovering a clickable hero.
+    const wantPointer = inTour || (hover !== null && !exploreFocusActive);
+    document.body.style.cursor = wantPointer ? "pointer" : "default";
     return () => {
       document.body.style.cursor = "default";
     };
@@ -1627,6 +1636,26 @@ export default function LivingMap() {
     else setExploreFocus(null); // free orbit on entering Explore; tour resumes from where it left off
   };
 
+  // user clicked a stage hero: focus it. In Tour this takes over — we hand control
+  // to the user and fly straight into the stage they aimed at.
+  const handleSelectRegion = (id: string) => {
+    if (inTour) {
+      setMode("explore");
+      setPlaying(false);
+    }
+    setHover(null);
+    setExploreFocus(id);
+  };
+
+  // user clicked empty space during the tour: hand control over at the overview so
+  // the whole scene becomes interactive (avoids the dead-click bounce on landing).
+  const leaveTourToExplore = () => {
+    setMode("explore");
+    setPlaying(false);
+    setExploreFocus(null);
+    setHover(null);
+  };
+
   const goStop = (i: number) => {
     setTourIdx((i + TOUR_STOPS.length) % TOUR_STOPS.length);
     setPlaying(false); // manual stepping pauses auto-advance
@@ -1642,14 +1671,14 @@ export default function LivingMap() {
         camera={{ position: HOME_CAM.toArray(), fov: 38 }}
         dpr={isCompact ? [1, 1.5] : [1, 2]}
         gl={{ antialias: true }}
-        onPointerMissed={() => !inTour && stepBack()}
+        onPointerMissed={() => (inTour ? leaveTourToExplore() : stepBack())}
       >
         <FovFit />
         <World
           hover={hover}
           setHover={setHover}
           focusId={focusId}
-          onSelect={setExploreFocus}
+          onSelect={handleSelectRegion}
           interactive={!inTour}
           anchor={anchor}
           packetMode={packets}
@@ -1779,6 +1808,11 @@ export default function LivingMap() {
                   <p className="mt-1 text-[13.5px] leading-snug text-slate-200">{stop.caption}</p>
                 </motion.div>
               </AnimatePresence>
+
+              <div className="mt-2 flex items-center gap-1.5 text-[10.5px] text-slate-500">
+                <span className="text-slate-400">✦</span>
+                click anywhere to explore freely
+              </div>
 
               <div className="mt-3.5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
