@@ -12,6 +12,10 @@ import SynthesisPlanAsset, { SynthesisPlanMapScene } from "../proto/SynthesisPla
 import SolutionGrowthAsset, { SolutionGrowthMapScene } from "../proto/SolutionGrowthAsset";
 import ThinFilmGrowthAsset, { ThinFilmGrowthMapScene } from "../proto/ThinFilmGrowthAsset";
 import HteLibraryAsset, { HteLibraryMapScene } from "../proto/HteLibraryAsset";
+import SpectroscopyAsset, { SpectroscopyMapScene } from "../proto/SpectroscopyAsset";
+import MicroscopyAsset, { MicroscopyMapScene } from "../proto/MicroscopyAsset";
+import InsituAsset, { InsituMapScene } from "../proto/InsituAsset";
+import StructureSolutionAsset, { StructureSolutionMapScene } from "../proto/StructureSolutionAsset";
 import { ROOT } from "../data/map";
 import { indexTree } from "../lib/tree";
 import type { Stage, MapNode } from "../data/types";
@@ -58,6 +62,10 @@ export const RING_NODES: RingNode[] = [
   { id: "syn-hte", stage: "synthesis", Scene: HteLibraryMapScene, Full: HteLibraryAsset, scale: 0.6, lift: 0.95, autoSpin: 0.16, node: meta("syn-hte") },
   { id: "syn-sdl", stage: "synthesis", Scene: SdlMapScene, Full: SdlAsset, scale: 0.34, lift: 0.7, autoSpin: 0.25, node: meta("syn-sdl") },
   { id: "char-diffraction", stage: "characterize", Scene: CharacterizationMapScene, Full: CharacterizationAsset, scale: 0.24, lift: 1.0, autoSpin: 0.2, node: meta("char-diffraction") },
+  { id: "char-spectroscopy", stage: "characterize", Scene: SpectroscopyMapScene, Full: SpectroscopyAsset, scale: 0.5, lift: 1.0, node: meta("char-spectroscopy") },
+  { id: "char-microscopy", stage: "characterize", Scene: MicroscopyMapScene, Full: MicroscopyAsset, scale: 0.5, lift: 1.0, node: meta("char-microscopy") },
+  { id: "char-insitu", stage: "characterize", Scene: InsituMapScene, Full: InsituAsset, scale: 0.5, lift: 1.0, node: meta("char-insitu") },
+  { id: "char-structure", stage: "characterize", Scene: StructureSolutionMapScene, Full: StructureSolutionAsset, scale: 0.5, lift: 1.0, node: meta("char-structure") },
 ];
 
 export const ringNodeById = (id: string): RingNode | undefined =>
