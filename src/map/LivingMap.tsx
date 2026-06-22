@@ -583,7 +583,6 @@ function RegionTotem({
   balance,
   recede,
   l2,
-  interactive,
   onOver,
   onOut,
   onSelect,
@@ -598,7 +597,6 @@ function RegionTotem({
   balance: boolean;
   recede: boolean;
   l2: boolean; // an L2 member is deep-zoomed → fade every stage hero out for a clean frame
-  interactive: boolean; // Explore: focused hero drops its hitbox so the back ring is hoverable
   onOver: () => void;
   onOut: () => void;
   onSelect: () => void;
@@ -696,20 +694,22 @@ function RegionTotem({
         </AutoSpin>
       </group>
 
-      {/* invisible hitbox for hover/click. In Explore, while this stage is focused,
-          drop all handlers so R3F removes it from raycasting — otherwise this large
-          central box sits between the camera and the back half of the L1 member ring
-          and swallows their hover via stopPropagation. In Tour the focused hero keeps
-          its hitbox so a click on the featured stage can take over into Explore. */}
+      {/* invisible hitbox for hover/click. While this stage's member ring is bloomed
+          (recede), drop all handlers so R3F removes the box from raycasting — otherwise
+          this large central box sits between the camera and the back half of the L1
+          ring and swallows their hover via stopPropagation. This applies in BOTH modes
+          (Tour and Explore); a click on the empty center then falls through to the
+          canvas's onPointerMissed. Non-focused heroes keep their hitbox so a click
+          flies into / takes over that stage. */}
       <mesh
         position={[0, region.heroLift, 0]}
         visible={false}
-        onPointerOver={focused && interactive ? undefined : (e) => {
+        onPointerOver={recede ? undefined : (e) => {
           e.stopPropagation();
           onOver();
         }}
-        onPointerOut={focused && interactive ? undefined : () => onOut()}
-        onClick={focused && interactive ? undefined : (e) => {
+        onPointerOut={recede ? undefined : () => onOut()}
+        onClick={recede ? undefined : (e) => {
           e.stopPropagation();
           onSelect();
         }}
@@ -1223,7 +1223,6 @@ function World({
   setHover,
   focusId,
   onSelect,
-  interactive,
   anchor,
   packetMode,
   packetGradient,
@@ -1254,7 +1253,6 @@ function World({
   setHover: (id: string | null) => void;
   focusId: string | null;
   onSelect: (id: string) => void;
-  interactive: boolean;
   anchor: Anchor;
   packetMode: PacketMode;
   packetGradient: boolean;
@@ -1338,9 +1336,9 @@ function World({
           balance={balanceHeroes}
           recede={showMembers && focusId === region.id}
           l2={nodeFocus !== null}
-          interactive={interactive}
-          // heroes are clickable in both modes: in Explore they focus the stage;
-          // in Tour the same click takes over (parent switches to Explore + focuses).
+          // heroes are clickable in both modes: in Explore they focus the stage; in
+          // Tour the same click takes over (parent switches to Explore + focuses).
+          // The focused hero drops its hitbox while its ring is up (see `recede`).
           onOver={() => !focusActive && setHover(region.id)}
           onOut={() => setHover(null)}
           onSelect={() => onSelect(region.id)}
@@ -1713,7 +1711,6 @@ export default function LivingMap() {
           setHover={setHover}
           focusId={focusId}
           onSelect={handleSelectRegion}
-          interactive={!inTour}
           anchor={anchor}
           packetMode={packets}
           packetGradient={packetGradient}
