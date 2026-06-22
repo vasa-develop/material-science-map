@@ -77,10 +77,20 @@ function Operando({ billboard }: { billboard: boolean }) {
     return new THREE.BufferGeometry().setFromPoints(pts);
   }, []);
 
+  // THREE.Line objects built imperatively — the <line> JSX intrinsic collides with
+  // SVG's <line> in the typings, so we render these line-strips via <primitive>.
+  const ringLine = useMemo(
+    () => new THREE.Line(ringGeo, new THREE.LineBasicMaterial({ color: PINK, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending })),
+    [ringGeo],
+  );
+  const arcLine = useMemo(
+    () => new THREE.Line(arcGeo, new THREE.LineBasicMaterial({ color: HOT, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending })),
+    [arcGeo],
+  );
+
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const cur = useMemo(() => A.map((p) => p.clone()), []);
   const recRef = useRef<THREE.Mesh>(null);
-  const arcRef = useRef<THREE.Line>(null);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
@@ -122,13 +132,9 @@ function Operando({ billboard }: { billboard: boolean }) {
 
   return (
     <group ref={group}>
-      {/* recording ring + filling time-arc */}
-      <line geometry={ringGeo}>
-        <lineBasicMaterial color={PINK} transparent opacity={0.22} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </line>
-      <line ref={arcRef} geometry={arcGeo}>
-        <lineBasicMaterial color={HOT} transparent opacity={0.9} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </line>
+      {/* recording ring + filling time-arc (THREE.Line via primitive — see above) */}
+      <primitive object={ringLine} />
+      <primitive object={arcLine} />
       {/* REC dot */}
       <mesh ref={recRef} position={[REC_R * 0.72, REC_R * 0.72, 0]}>
         <sphereGeometry args={[0.05, 14, 14]} />

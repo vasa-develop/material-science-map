@@ -41,7 +41,6 @@ function Spectrum({ billboard }: { billboard: boolean }) {
   const group = useRef<THREE.Group>(null);
   const { camera } = useThree();
 
-  const lineRef = useRef<THREE.Line>(null);
   const barsRef = useRef<THREE.LineSegments>(null);
   const markerRef = useRef<THREE.Mesh>(null);
   const sampleMat = useRef<THREE.MeshStandardMaterial>(null);
@@ -70,6 +69,17 @@ function Spectrum({ billboard }: { billboard: boolean }) {
       new THREE.Vector3(X1 + 0.05, BASE_Y, 0),
     ]);
   }, []);
+
+  // THREE.Line objects built imperatively — the <line> JSX intrinsic collides with
+  // SVG's <line> in the typings, so we render these line-strips via <primitive>.
+  const axisLine = useMemo(
+    () => new THREE.Line(axisGeo, new THREE.LineBasicMaterial({ color: VIOLET, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending })),
+    [axisGeo],
+  );
+  const curveLine = useMemo(
+    () => new THREE.Line(curveGeo, new THREE.LineBasicMaterial({ color: HOT, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending })),
+    [curveGeo],
+  );
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
@@ -117,20 +127,16 @@ function Spectrum({ billboard }: { billboard: boolean }) {
         <meshStandardMaterial ref={sampleMat} color={HOT} emissive={PURPLE} emissiveIntensity={0.8} roughness={0.3} metalness={0.4} flatShading />
       </mesh>
 
-      {/* baseline axis */}
-      <line geometry={axisGeo}>
-        <lineBasicMaterial color={VIOLET} transparent opacity={0.35} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </line>
+      {/* baseline axis (THREE.Line via primitive — see above) */}
+      <primitive object={axisLine} />
 
       {/* emission bars */}
       <lineSegments ref={barsRef} geometry={barsGeo}>
         <lineBasicMaterial color={PURPLE} transparent opacity={0.55} depthWrite={false} blending={THREE.AdditiveBlending} />
       </lineSegments>
 
-      {/* spectral curve */}
-      <line ref={lineRef} geometry={curveGeo}>
-        <lineBasicMaterial color={HOT} transparent opacity={0.95} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </line>
+      {/* spectral curve (THREE.Line via primitive — see above) */}
+      <primitive object={curveLine} />
 
       {/* readout marker */}
       <mesh ref={markerRef}>

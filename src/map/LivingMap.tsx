@@ -2064,7 +2064,7 @@ export default function LivingMap() {
                       <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: m.tone }}>
                         {m.label}
                       </div>
-                      <p className="mt-1 text-[12.5px] leading-snug text-slate-300">{focusNode.fields[m.key]}</p>
+                      <p className="mt-1 text-[12.5px] leading-snug text-slate-300">{focusNode.fields?.[m.key]}</p>
                     </div>
                   ))}
                 </div>
