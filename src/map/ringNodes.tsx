@@ -7,6 +7,8 @@ import DatabaseStackAsset, { DatabaseMapScene } from "../proto/DatabaseStackAsse
 import CrucibleAsset, { CrucibleMapScene } from "../proto/CrucibleAsset";
 import SdlAsset, { SdlMapScene } from "../proto/SdlAsset";
 import CharacterizationAsset, { CharacterizationMapScene } from "../proto/CharacterizationAsset";
+import DesignObjectiveAsset, { DesignObjectiveMapScene } from "../proto/DesignObjectiveAsset";
+import SynthesisPlanAsset, { SynthesisPlanMapScene } from "../proto/SynthesisPlanAsset";
 import { ROOT } from "../data/map";
 import { indexTree } from "../lib/tree";
 import type { Stage, MapNode } from "../data/types";
@@ -40,11 +42,13 @@ export interface RingNode {
  * with a real built asset are listed; the rest render as placeholder totems.
  */
 export const RING_NODES: RingNode[] = [
+  { id: "design-objective", stage: "discover", Scene: DesignObjectiveMapScene, Full: DesignObjectiveAsset, scale: 0.62, lift: 1.0, node: meta("design-objective") },
   { id: "databases", stage: "discover", Scene: DatabaseMapScene, Full: DatabaseStackAsset, scale: 0.5, lift: 0.95, node: meta("databases") },
   { id: "dft", stage: "discover", Scene: DensityMapScene, Full: DensityAsset, scale: 0.52, lift: 1.1, accent: "#f97316", node: meta("dft") },
   { id: "mlip", stage: "discover", Scene: MlipMapScene, Full: MlipAsset, scale: 0.42, lift: 0.95, node: meta("mlip") },
   { id: "hts", stage: "discover", Scene: HtsFunnelMapScene, Full: HtsFunnelAsset, scale: 0.24, lift: 1.1, node: meta("hts") },
   { id: "generative", stage: "discover", Scene: GenerativeMapScene, Full: GenerativeAsset, scale: 0.42, lift: 1.1, node: meta("generative") },
+  { id: "syn-planning", stage: "synthesis", Scene: SynthesisPlanMapScene, Full: SynthesisPlanAsset, scale: 0.6, lift: 1.0, node: meta("syn-planning") },
   { id: "syn-solidstate", stage: "synthesis", Scene: CrucibleMapScene, Full: CrucibleAsset, scale: 0.62, lift: 0.85, node: meta("syn-solidstate") },
   { id: "syn-sdl", stage: "synthesis", Scene: SdlMapScene, Full: SdlAsset, scale: 0.34, lift: 0.7, autoSpin: 0.25, node: meta("syn-sdl") },
   { id: "char-diffraction", stage: "characterize", Scene: CharacterizationMapScene, Full: CharacterizationAsset, scale: 0.24, lift: 1.0, autoSpin: 0.2, node: meta("char-diffraction") },
