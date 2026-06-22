@@ -855,11 +855,9 @@ function MemberNode({
         onPointerOver={!interactive || collapsed ? undefined : (e) => {
           e.stopPropagation();
           onOver();
-          if (hasAsset) document.body.style.cursor = "pointer";
         }}
         onPointerOut={!interactive || collapsed ? undefined : () => {
           onOut();
-          document.body.style.cursor = "default";
         }}
         onClick={interactive && hasAsset && !collapsed ? (e) => { e.stopPropagation(); onOpen(); } : undefined}
       >
@@ -1544,14 +1542,28 @@ export default function LivingMap() {
   const trailLen = 1.15;
   const trailGlow = 0.5;
 
-  // clear any stale member highlight + L2 deep-zoom when the focused stage changes / closes
+  // clear any stale member highlight + L2 deep-zoom when the focused stage changes /
+  // closes. `skipNodeReset` lets a Tour→Explore takeover keep the sub-step it dove into.
+  const skipNodeReset = useRef(false);
   useEffect(() => {
     setMemberHover(null);
-    setNodeFocus(null);
+    if (skipNodeReset.current) skipNodeReset.current = false;
+    else setNodeFocus(null);
   }, [exploreFocus, mode]);
 
-  // open a member: deep-zoom in-canvas (Path 2) or fall back to the /n/:id page
+  // open a member. In Tour this takes over: hand control to the user and dive
+  // straight into the sub-step they clicked (Explore, focused stage, L2 deep-zoom).
   const openNode = (id: string) => {
+    if (mode === "tour") {
+      const region = L0_REGIONS.find((r) => (r.node.children ?? []).some((c) => c.id === id));
+      skipNodeReset.current = true;
+      setMode("explore");
+      setPlaying(false);
+      setHover(null);
+      if (region) setExploreFocus(region.id);
+      setNodeFocus(id);
+      return;
+    }
     if (L2_IN_CANVAS) setNodeFocus(id);
     else navigate(`/n/${id}`);
   };
@@ -1584,15 +1596,10 @@ export default function LivingMap() {
     return () => window.clearTimeout(t);
   }, [inTour, playing, tourIdx, stop.dwell]);
 
-  useEffect(() => {
-    // Tour: the whole scene is clickable (click takes over into Explore), so invite
-    // it with a pointer cursor. Explore: pointer only when hovering a clickable hero.
-    const wantPointer = inTour || (hover !== null && !exploreFocusActive);
-    document.body.style.cursor = wantPointer ? "pointer" : "default";
-    return () => {
-      document.body.style.cursor = "default";
-    };
-  }, [hover, inTour, exploreFocusActive]);
+  // Cursor is state-driven (set on the canvas below). Tour: the whole scene is
+  // clickable, so always invite with a pointer. Explore: pointer when hovering a
+  // clickable hero (hover) or a sub-step in the ring (memberHover).
+  const sceneCursor = inTour || hover !== null || memberHover !== null ? "pointer" : "default";
 
   useEffect(() => {
     const order = L0_REGIONS.map((r) => r.id);
@@ -1671,6 +1678,7 @@ export default function LivingMap() {
         camera={{ position: HOME_CAM.toArray(), fov: 38 }}
         dpr={isCompact ? [1, 1.5] : [1, 2]}
         gl={{ antialias: true }}
+        style={{ cursor: sceneCursor }}
         onPointerMissed={() => (inTour ? leaveTourToExplore() : stepBack())}
       >
         <FovFit />
@@ -1715,9 +1723,14 @@ export default function LivingMap() {
           // Tour stays hero-only — except at a Tour L2 stop, where the ring mounts so
           // the single focused member can render (siblings stay collapsed).
           showMembers={!isCompact || !inTour || l2Node !== null}
-          membersInteractive={!inTour}
+          // sub-steps are hoverable + clickable in both modes; in Tour a click dives
+          // into the step (openNode takes over) and hovering takes the wheel (pauses).
+          membersInteractive
           memberHover={memberHover}
-          onMemberHover={setMemberHover}
+          onMemberHover={(id) => {
+            setMemberHover(id);
+            if (inTour && id) setPlaying(false);
+          }}
           nodeFocus={l2Node}
           onOpenNode={openNode}
           onUserInteract={() => {
