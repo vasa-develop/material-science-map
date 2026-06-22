@@ -1,3 +1,4 @@
+import { useCallback, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ringNodeById } from "./ringNodes";
@@ -15,6 +16,19 @@ export default function NodeDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const ring = id ? ringNodeById(id) : undefined;
+
+  // Back to the map, re-focused on this sub-step (so the navigation stays coherent).
+  const backToMap = useCallback(() => {
+    navigate(ring && id ? `/?focus=${id}` : "/");
+  }, [navigate, ring, id]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") backToMap();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [backToMap]);
 
   if (!ring) {
     return (
@@ -45,10 +59,10 @@ export default function NodeDetail() {
       {/* top bar: back + title */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4 sm:p-6">
         <button
-          onClick={() => navigate("/")}
+          onClick={backToMap}
           className="pointer-events-auto rounded-full border border-white/15 bg-[rgba(5,8,16,0.7)] px-3.5 py-1.5 text-sm text-slate-200 backdrop-blur-md transition hover:bg-white/10"
         >
-          ← Map
+          ← Back to map
         </button>
         <div
           className="pointer-events-auto rounded-xl border bg-[rgba(5,8,16,0.72)] px-4 py-2 text-right backdrop-blur-md"

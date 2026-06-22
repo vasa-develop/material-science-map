@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Html, Line } from "@react-three/drei";
 import { AnimatePresence, motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import * as THREE from "three";
 import { regionById, ringNodeById, type RegionVis, type RingNode } from "./ringNodes";
 import type { MapNode } from "../data/types";
@@ -1515,17 +1515,29 @@ function FovFit() {
 
 export default function LivingMap() {
   const navigate = useNavigate();
+  const location = useLocation();
   const isCompact = useIsCompact();
+
+  // Returning from a sub-step page (/n/:id) lands here as /?focus=<id> so the map
+  // re-opens already deep-zoomed onto that sub-step — keeping navigation coherent.
+  const initialFocus = useMemo(() => {
+    const id = new URLSearchParams(location.search).get("focus");
+    if (!id || !ringNodeById(id)) return null;
+    const region = L0_REGIONS.find((r) => (r.node.children ?? []).some((c) => c.id === id));
+    return region ? { regionId: region.id, nodeId: id } : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [showMobileNote, setShowMobileNote] = useState(true);
-  const [mode, setMode] = useState<Mode>("tour");
+  const [mode, setMode] = useState<Mode>(initialFocus ? "explore" : "tour");
   const [hover, setHover] = useState<string | null>(null);
-  const [exploreFocus, setExploreFocus] = useState<string | null>(null);
+  const [exploreFocus, setExploreFocus] = useState<string | null>(initialFocus?.regionId ?? null);
   // L2 deep-zoom: the member node opened in-canvas within the focused stage (Path 2)
-  const [nodeFocus, setNodeFocus] = useState<string | null>(null);
+  const [nodeFocus, setNodeFocus] = useState<string | null>(initialFocus?.nodeId ?? null);
   // shared hover for L1 members so the inspector list ↔ 3D ring cross-highlight
   const [memberHover, setMemberHover] = useState<string | null>(null);
   const [tourIdx, setTourIdx] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(!initialFocus);
   // L0 visual config — locked in from the /lab playground
   const anchor: Anchor = "disc";
   const packets: PacketMode = "3d";
@@ -1542,14 +1554,28 @@ export default function LivingMap() {
   const trailLen = 1.15;
   const trailGlow = 0.5;
 
-  // clear any stale member highlight + L2 deep-zoom when the focused stage changes /
-  // closes. `skipNodeReset` lets a Tour→Explore takeover keep the sub-step it dove into.
+  // Clear any stale member highlight + L2 deep-zoom when the focused stage actually
+  // changes / closes. We diff against the previous (mode, stage) rather than firing on
+  // mount, so an initial /?focus= deep-link keeps its L2 (and StrictMode's double-invoke
+  // can't wipe it). `skipNodeReset` lets a Tour→Explore takeover keep its dove-into node.
   const skipNodeReset = useRef(false);
+  // seed with the mount key so the initial render (incl. a /?focus= deep-link) is a
+  // no-op and only genuine stage changes afterwards clear the deep-zoom.
+  const prevFocusKey = useRef<string>(`${initialFocus ? "explore" : "tour"}|${initialFocus?.regionId ?? ""}`);
   useEffect(() => {
+    const key = `${mode}|${exploreFocus ?? ""}`;
+    if (prevFocusKey.current === key) return; // mount re-run or unrelated render
+    prevFocusKey.current = key;
     setMemberHover(null);
     if (skipNodeReset.current) skipNodeReset.current = false;
     else setNodeFocus(null);
   }, [exploreFocus, mode]);
+
+  // tidy the address bar back to "/" once the deep-link focus has been consumed
+  useEffect(() => {
+    if (initialFocus) navigate("/", { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // open a member. In Tour this takes over: hand control to the user and dive
   // straight into the sub-step they clicked (Explore, focused stage, L2 deep-zoom).
