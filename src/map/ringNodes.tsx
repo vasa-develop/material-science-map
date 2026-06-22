@@ -9,6 +9,9 @@ import SdlAsset, { SdlMapScene } from "../proto/SdlAsset";
 import CharacterizationAsset, { CharacterizationMapScene } from "../proto/CharacterizationAsset";
 import DesignObjectiveAsset, { DesignObjectiveMapScene } from "../proto/DesignObjectiveAsset";
 import SynthesisPlanAsset, { SynthesisPlanMapScene } from "../proto/SynthesisPlanAsset";
+import SolutionGrowthAsset, { SolutionGrowthMapScene } from "../proto/SolutionGrowthAsset";
+import ThinFilmGrowthAsset, { ThinFilmGrowthMapScene } from "../proto/ThinFilmGrowthAsset";
+import HteLibraryAsset, { HteLibraryMapScene } from "../proto/HteLibraryAsset";
 import { ROOT } from "../data/map";
 import { indexTree } from "../lib/tree";
 import type { Stage, MapNode } from "../data/types";
@@ -50,6 +53,9 @@ export const RING_NODES: RingNode[] = [
   { id: "generative", stage: "discover", Scene: GenerativeMapScene, Full: GenerativeAsset, scale: 0.42, lift: 1.1, node: meta("generative") },
   { id: "syn-planning", stage: "synthesis", Scene: SynthesisPlanMapScene, Full: SynthesisPlanAsset, scale: 0.6, lift: 1.0, node: meta("syn-planning") },
   { id: "syn-solidstate", stage: "synthesis", Scene: CrucibleMapScene, Full: CrucibleAsset, scale: 0.62, lift: 0.85, node: meta("syn-solidstate") },
+  { id: "syn-solution", stage: "synthesis", Scene: SolutionGrowthMapScene, Full: SolutionGrowthAsset, scale: 0.5, lift: 1.0, node: meta("syn-solution") },
+  { id: "syn-vapor", stage: "synthesis", Scene: ThinFilmGrowthMapScene, Full: ThinFilmGrowthAsset, scale: 0.62, lift: 0.92, autoSpin: 0.18, node: meta("syn-vapor") },
+  { id: "syn-hte", stage: "synthesis", Scene: HteLibraryMapScene, Full: HteLibraryAsset, scale: 0.6, lift: 0.95, autoSpin: 0.16, node: meta("syn-hte") },
   { id: "syn-sdl", stage: "synthesis", Scene: SdlMapScene, Full: SdlAsset, scale: 0.34, lift: 0.7, autoSpin: 0.25, node: meta("syn-sdl") },
   { id: "char-diffraction", stage: "characterize", Scene: CharacterizationMapScene, Full: CharacterizationAsset, scale: 0.24, lift: 1.0, autoSpin: 0.2, node: meta("char-diffraction") },
 ];
