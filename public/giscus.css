@@ -7,6 +7,18 @@
  *  (served with `Access-Control-Allow-Origin: https://giscus.app` — see vercel.json)
  */
 
+/* The site's body/heading font (Computer Modern Roman). The giscus iframe can't see
+ * the parent page's @font-face, so we re-declare it here from the same source the site
+ * uses (serves `Access-Control-Allow-Origin: *`, so cross-origin load into the iframe works).
+ * Without this, giscus falls back to Georgia and looks like a different font. */
+@font-face {
+  font-family: "cmunrm";
+  src: url("https://www.flashbots.net/fonts/cmunrm.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 main {
   /* syntax highlighting — kept from the light base (reads fine on cream) */
   --color-prettylights-syntax-comment: #6e7781;
