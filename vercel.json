@@ -4,5 +4,14 @@
     { "source": "/lab", "destination": "/index.html" },
     { "source": "/proto", "destination": "/index.html" },
     { "source": "/pixi", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/giscus.css",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://giscus.app" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    }
   ]
 }
