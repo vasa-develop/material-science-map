@@ -1,6 +1,11 @@
 import { useState, type ComponentType } from "react";
+import BondSweetSpotAsset from "./BondSweetSpotAsset";
 import CharacterizationAsset from "./CharacterizationAsset";
+import CombinatorialWallAsset from "./CombinatorialWallAsset";
+import CouplingWebAsset from "./CouplingWebAsset";
 import CrucibleAsset from "./CrucibleAsset";
+import DiamondGraphiteAsset from "./DiamondGraphiteAsset";
+import EnergyLandscapeGameAsset from "./EnergyLandscapeGameAsset";
 import DatabaseStackAsset from "./DatabaseStackAsset";
 import DatabasesAsset from "./DatabasesAsset";
 import DensityAsset from "./DensityAsset";
@@ -26,7 +31,12 @@ import SynthesisParamsAsset from "./SynthesisParamsAsset";
 import ThinFilmAsset from "./ThinFilmAsset";
 
 /** A scratch gallery to author + review each node's 3D asset in isolation. */
-const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
+export const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
+  { id: "comb-wall", label: "Primer · combinatorial wall", Comp: CombinatorialWallAsset },
+  { id: "landscape-game", label: "Primer · landscape search game", Comp: EnergyLandscapeGameAsset },
+  { id: "diamond-graphite", label: "Primer · diamond vs graphite", Comp: DiamondGraphiteAsset },
+  { id: "sweet-spot", label: "Primer · bond sweet spot", Comp: BondSweetSpotAsset },
+  { id: "coupling-web", label: "Primer · coupling web", Comp: CouplingWebAsset },
   { id: "md", label: "MD · species", Comp: MdAsset },
   { id: "md-phase", label: "MD · phase color", Comp: () => <MdAsset mode="phase" /> },
   { id: "md-orbital", label: "MD · orbital atoms", Comp: MdOrbitalAsset },
