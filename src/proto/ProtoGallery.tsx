@@ -25,6 +25,7 @@ import MdOrbitalAsset from "./MdOrbitalAsset";
 import MdProbeAsset from "./MdProbeAsset";
 import MlipAsset from "./MlipAsset";
 import MlipGraphAsset from "./MlipGraphAsset";
+import OneLookAsset from "./OneLookAsset";
 import Orbital2sAsset from "./Orbital2sAsset";
 import PredictiveAsset from "./PredictiveAsset";
 import ProductionScalesAsset from "./ProductionScalesAsset";
@@ -37,6 +38,7 @@ export const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "comb-wall", label: "Primer · combinatorial wall", Comp: CombinatorialWallAsset },
   { id: "likelihood-list", label: "Primer · the 1,000-number list", Comp: LikelihoodListAsset },
   { id: "joint-table", label: "Primer · the million-number table", Comp: JointTableAsset },
+  { id: "one-look", label: "Primer · one look, one dot", Comp: OneLookAsset },
   { id: "landscape-game", label: "Primer · landscape search game", Comp: EnergyLandscapeGameAsset },
   { id: "diamond-graphite", label: "Primer · diamond vs graphite", Comp: DiamondGraphiteAsset },
   { id: "sweet-spot", label: "Primer · bond sweet spot", Comp: BondSweetSpotAsset },
