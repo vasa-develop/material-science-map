@@ -6,6 +6,7 @@ import CouplingWebAsset from "./CouplingWebAsset";
 import CrucibleAsset from "./CrucibleAsset";
 import DiamondGraphiteAsset from "./DiamondGraphiteAsset";
 import EnergyLandscapeGameAsset from "./EnergyLandscapeGameAsset";
+import LikelihoodListAsset from "./LikelihoodListAsset";
 import DatabaseStackAsset from "./DatabaseStackAsset";
 import DatabasesAsset from "./DatabasesAsset";
 import DensityAsset from "./DensityAsset";
@@ -33,6 +34,7 @@ import ThinFilmAsset from "./ThinFilmAsset";
 /** A scratch gallery to author + review each node's 3D asset in isolation. */
 export const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "comb-wall", label: "Primer · combinatorial wall", Comp: CombinatorialWallAsset },
+  { id: "likelihood-list", label: "Primer · the 1,000-number list", Comp: LikelihoodListAsset },
   { id: "landscape-game", label: "Primer · landscape search game", Comp: EnergyLandscapeGameAsset },
   { id: "diamond-graphite", label: "Primer · diamond vs graphite", Comp: DiamondGraphiteAsset },
   { id: "sweet-spot", label: "Primer · bond sweet spot", Comp: BondSweetSpotAsset },
