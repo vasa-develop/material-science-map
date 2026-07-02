@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAmbient } from "./useAmbient";
 
 /**
  * Asset: the energy-landscape search game.
@@ -101,8 +102,23 @@ export default function EnergyLandscapeGameAsset() {
     setSettled(false);
   }, [mode, stop]);
 
+  // attract mode: drop demo guesses on its own until the reader takes over
+  const { ambient, notifyInteraction } = useAmbient();
+  useEffect(() => {
+    if (!ambient) return;
+    const drop = () => {
+      const x0 = 0.08 + Math.random() * 0.84;
+      setX(x0);
+      descend(x0);
+    };
+    drop();
+    const iv = window.setInterval(drop, 5200);
+    return () => window.clearInterval(iv);
+  }, [ambient, descend]);
+
   const onClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current) return;
+    notifyInteraction();
     const r = svgRef.current.getBoundingClientRect();
     const gx = ((e.clientX - r.left) / r.width) * W;
     const x0 = Math.max(0, Math.min(1, (gx - PAD) / (W - PAD * 2)));
@@ -199,7 +215,10 @@ export default function EnergyLandscapeGameAsset() {
         {(["single", "multi"] as Mode[]).map((m) => (
           <button
             key={m}
-            onClick={() => setMode(m)}
+            onClick={() => {
+              notifyInteraction();
+              setMode(m);
+            }}
             className={`rounded-full px-3 py-1.5 text-xs transition ${
               mode === m ? "bg-white/15 text-white" : "bg-white/5 text-slate-400 hover:text-white"
             }`}

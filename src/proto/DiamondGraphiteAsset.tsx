@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Line } from "@react-three/drei";
 import * as THREE from "three";
+import { useAmbient } from "./useAmbient";
 
 /**
  * Asset: diamond vs graphite — same carbon atoms, different arrangement, different world.
@@ -170,6 +171,14 @@ export default function DiamondGraphiteAsset() {
     setPushT(0.0001);
   };
 
+  // attract mode: slow orbit + a demo push every few seconds until the reader takes over
+  const { ambient, notifyInteraction } = useAmbient();
+  useEffect(() => {
+    if (!ambient) return;
+    const iv = window.setInterval(push, 6500);
+    return () => window.clearInterval(iv);
+  }, [ambient]);
+
   return (
     <>
       <Canvas className="absolute inset-0" camera={{ position: [4.6, 3.1, 4.6], fov: 42 }} dpr={[1, 2]}>
@@ -178,7 +187,14 @@ export default function DiamondGraphiteAsset() {
         <directionalLight position={[4, 6, 3]} intensity={1.2} />
         <Ticker pushing={pushing} setPushT={setPushT} />
         {which === "diamond" ? <DiamondModel pushT={pushT} /> : <GraphiteModel pushT={pushT} />}
-        <OrbitControls enablePan={false} minDistance={3} maxDistance={10} />
+        <OrbitControls
+          enablePan={false}
+          minDistance={3}
+          maxDistance={10}
+          autoRotate={ambient}
+          autoRotateSpeed={0.9}
+          onStart={notifyInteraction}
+        />
       </Canvas>
 
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-end gap-3 pb-6">
@@ -194,6 +210,7 @@ export default function DiamondGraphiteAsset() {
             <button
               key={w}
               onClick={() => {
+                notifyInteraction();
                 setWhich(w);
                 setPushT(0);
                 pushing.current = false;
@@ -206,7 +223,10 @@ export default function DiamondGraphiteAsset() {
             </button>
           ))}
           <button
-            onClick={push}
+            onClick={() => {
+              notifyInteraction();
+              push();
+            }}
             className="rounded-full bg-sky-400/15 px-4 py-1.5 text-xs text-sky-300 transition hover:bg-sky-400/25"
           >
             push it

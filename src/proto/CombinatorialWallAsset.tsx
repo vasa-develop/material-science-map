@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useAmbient } from "./useAmbient";
 
 /**
  * Asset: "The odometer that outruns the universe" — the combinatorial wall of the
@@ -112,13 +113,20 @@ function BeatTwo({ auto, onGrab }: { auto: boolean; onGrab?: () => void }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const raf = useRef(0);
 
-  // autoplay: sweep cloud A on a lissajous path so the reaction is visible hands-free
+  // autoplay: sweep cloud A on a lissajous path so the reaction is visible hands-free;
+  // blend in from the current position so resuming after a drag doesn't teleport
+  const aRef = useRef(a);
+  aRef.current = a;
   useEffect(() => {
     if (!auto) return;
+    const from = { ...aRef.current };
     const t0 = performance.now();
     const loop = (t: number) => {
       const s = (t - t0) / 1000;
-      setA({ x: 110 + Math.sin(s * 1.1) * 62, y: 110 + Math.sin(s * 0.7 + 1.3) * 48 });
+      const tx = 110 + Math.sin(s * 1.1) * 62;
+      const ty = 110 + Math.sin(s * 0.7 + 1.3) * 48;
+      const w = Math.min(1, s / 1.2);
+      setA({ x: from.x + (tx - from.x) * w, y: from.y + (ty - from.y) * w });
       raf.current = requestAnimationFrame(loop);
     };
     raf.current = requestAnimationFrame(loop);
@@ -369,11 +377,18 @@ export default function CombinatorialWallAsset() {
     at(10200 + 30 * 380 + 1200, () => setAuto(false));
   }, [stopAuto, solo]);
 
-  // solo beat 2 starts moving on its own so the correlation is visible before any interaction
+  // attract mode for the solo beats: self-demo until the reader takes over,
+  // then resume after a stretch of idleness (full-mode narrative never auto-plays)
+  const { ambient, notifyInteraction } = useAmbient();
   useEffect(() => {
-    if (solo === 1) setAuto(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (solo === 1) setAuto(ambient);
+  }, [solo, ambient]);
+  useEffect(() => {
+    if (solo !== 2 || !ambient) return;
+    play();
+    const iv = window.setInterval(play, 30 * 380 + 5600);
+    return () => window.clearInterval(iv);
+  }, [solo, ambient, play]);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
@@ -389,8 +404,8 @@ export default function CombinatorialWallAsset() {
             transition={{ duration: 0.35 }}
           >
             {beat === 0 && <BeatOne />}
-            {beat === 1 && <BeatTwo auto={auto} onGrab={stopAuto} />}
-            {beat === 2 && <BeatThree n={n} setN={(v) => { stopAuto(); setN(v); }} />}
+            {beat === 1 && <BeatTwo auto={auto} onGrab={() => { stopAuto(); notifyInteraction(); }} />}
+            {beat === 2 && <BeatThree n={n} setN={(v) => { stopAuto(); notifyInteraction(); setN(v); }} />}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -424,7 +439,11 @@ export default function CombinatorialWallAsset() {
         )}
         {solo === 2 && (
           <button
-            onClick={auto ? stopAuto : play}
+            onClick={() => {
+              notifyInteraction();
+              if (auto) stopAuto();
+              else play();
+            }}
             className={`rounded-full px-3 py-1.5 text-xs transition ${
               auto ? "bg-red-400/20 text-red-300" : "bg-sky-400/15 text-sky-300 hover:bg-sky-400/25"
             }`}

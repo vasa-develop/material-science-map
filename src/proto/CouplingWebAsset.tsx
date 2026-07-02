@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { useAmbient } from "./useAmbient";
 
 /**
  * Asset: "every electron feels every other one, all at once."
@@ -35,6 +36,21 @@ function layout(nAtoms: number): P[] {
 export default function CouplingWebAsset() {
   const [nAtoms, setNAtoms] = useState(2);
   const pts = useMemo(() => layout(nAtoms), [nAtoms]);
+
+  // attract mode: breathe the atom count up and down until the reader grabs the slider
+  const { ambient, notifyInteraction } = useAmbient();
+  const dir = useRef(1);
+  useEffect(() => {
+    if (!ambient) return;
+    const iv = window.setInterval(() => {
+      setNAtoms((n) => {
+        if (n >= 8) dir.current = -1;
+        if (n <= 1) dir.current = 1;
+        return Math.max(1, Math.min(8, n + dir.current));
+      });
+    }, 1500);
+    return () => window.clearInterval(iv);
+  }, [ambient]);
 
   const electrons = pts.filter((p) => p.kind === "e");
   const nuclei = pts.filter((p) => p.kind === "n");
@@ -111,7 +127,11 @@ export default function CouplingWebAsset() {
           min={1}
           max={8}
           value={nAtoms}
-          onChange={(e) => setNAtoms(parseInt(e.target.value))}
+          onChange={(e) => {
+            notifyInteraction();
+            setNAtoms(parseInt(e.target.value));
+          }}
+          onPointerDown={notifyInteraction}
           className="w-52 accent-sky-400"
         />
         <span className="text-xs text-slate-500">8 atoms</span>

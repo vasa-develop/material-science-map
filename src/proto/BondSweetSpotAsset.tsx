@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { useAmbient } from "./useAmbient";
 
 /**
  * Asset: two atoms finding the sweet spot.
@@ -45,6 +46,33 @@ export default function BondSweetSpotAsset() {
   const atSweet = Math.abs(d - SWEET) < 12;
   const tooClose = d < SWEET - 24;
 
+  // attract mode: sweep the amber atom through the whole range, tracing the
+  // valley hands-free, until the reader grabs it
+  const { ambient, notifyInteraction } = useAmbient();
+  const bxRef = useRef(bx);
+  bxRef.current = bx;
+  useEffect(() => {
+    if (!ambient || tab !== "two") return;
+    let raf = 0;
+    const mid = (MIN_D + MAX_D) / 2;
+    const amp = (MAX_D - MIN_D) / 2 - 6;
+    // start the sine wherever the atom currently is, so resuming doesn't jump
+    const phase0 = Math.asin(Math.max(-1, Math.min(1, (bxRef.current - AX - mid) / amp)));
+    const t0 = performance.now();
+    const loop = (t: number) => {
+      const nd = mid + Math.sin(((t - t0) / 1000) * 0.5 + phase0) * amp;
+      setBx(AX + nd);
+      setTrace((tr) => {
+        const next = new Set(tr);
+        next.add(Math.round(nd / 4) * 4);
+        return next;
+      });
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [ambient, tab]);
+
   const onMove = useCallback((ev: React.PointerEvent<SVGSVGElement>) => {
     if (!dragging.current || !svgRef.current) return;
     const r = svgRef.current.getBoundingClientRect();
@@ -69,13 +97,19 @@ export default function BondSweetSpotAsset() {
     <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 bg-[#06070d] px-4">
       <div className="flex items-center gap-2">
         <button
-          onClick={() => setTab("one")}
+          onClick={() => {
+            notifyInteraction();
+            setTab("one");
+          }}
           className={`rounded-full px-3 py-1.5 text-xs transition ${tab === "one" ? "bg-white/15 text-white" : "bg-white/5 text-slate-400 hover:text-white"}`}
         >
           one atom
         </button>
         <button
-          onClick={() => setTab("two")}
+          onClick={() => {
+            notifyInteraction();
+            setTab("two");
+          }}
           className={`rounded-full px-3 py-1.5 text-xs transition ${tab === "two" ? "bg-white/15 text-white" : "bg-white/5 text-slate-400 hover:text-white"}`}
         >
           two atoms — find the sweet spot
@@ -136,6 +170,7 @@ export default function BondSweetSpotAsset() {
             viewBox={`0 0 ${W} ${CANVAS_H}`}
             className="max-w-full cursor-grab touch-none rounded-t-xl border border-b-0 border-white/10 bg-white/[0.02] active:cursor-grabbing"
             onPointerDown={(ev) => {
+              notifyInteraction();
               dragging.current = true;
               (ev.target as Element).setPointerCapture?.(ev.pointerId);
               onMove(ev);
