@@ -80,11 +80,11 @@ function CountUp({ value }: { value: number }) {
 
 const CAPTIONS = [
   <>Our real box was 10 × 10 × 10 — a <b>thousand</b> little boxes. Too many to draw. So let's shrink the world down to a flat 4 × 4 patch: <b>sixteen boxes</b>. Nothing important changes — we'll scale back up at the end.</>,
-  <>One electron — call it <b className="text-sky-300">blue</b>. One likelihood number per box: <b>sixteen numbers</b>, adding up to 100%. Easy.</>,
-  <>Add a second electron — <b className="text-amber-300">amber</b> — and try the tempting move: give it its own sixteen numbers. 16 + 16 = 32, done? …except amber's numbers <b>depend on where blue is</b>.</>,
-  <>So let's do it honestly. <b>Suppose</b> blue turned up in box #1 — here's amber's list <i>for that case</i>. Stamp it down: <b>row #1</b>. But blue might be in box #2 instead — amber's list changes. <b>Row #2</b>. Box #3 → <b>row #3</b>…</>,
+  <>One electron — call it <b className="text-sky-300">blue</b>. One number per box: how likely a look is to <b>find</b> it there. <b>Sixteen numbers</b>, adding up to 100%. Easy.</>,
+  <>Add a second electron — <b className="text-amber-300">amber</b> — and try the tempting move: give it its own sixteen numbers. 16 + 16 = 32, done? …except amber's numbers <b>depend on where blue turns up</b>.</>,
+  <>So let's cover every case, honestly. <b>Suppose</b> a look finds blue in box #1 — not a claim that it <i>is</i> there, just one way the look could turn out. Amber's list <i>for that case</i>: <b>row #1</b>. Found in box #2 instead? A different list — <b>row #2</b>. Box #3 → <b>row #3</b>…</>,
   <>And there's nothing special about the first three boxes — blue could turn up in <b>any</b> of the sixteen. Sixteen rows, sixteen numbers each: <b>16 × 16 = 256</b>.</>,
-  <>Look at what we've built: every cell answers one very concrete question — <i>"how likely is <b className="text-sky-300">blue</b> in box A <b>and</b> <b className="text-amber-300">amber</b> in box B?"</i> One big joint list, not lists-of-lists. (<b>Hover the table</b> to ask a question; <b>click a world box</b> to place blue.)</>,
+  <>Look at what we've built: every cell answers one very concrete question — <i>"how likely is a look to find <b className="text-sky-300">blue</b> in box A <b>and</b> <b className="text-amber-300">amber</b> in box B?"</i> One big joint list, not lists-of-lists. (<b>Hover the table</b> to ask a question; <b>click a world box</b> to place blue.)</>,
   <>Now <b>un-shrink</b> the world. With 1,000 boxes, the very same table becomes 1,000 rows × 1,000 columns: <b>one million numbers</b>. And every extra electron multiplies the pile by another thousand.</>,
 ] as const;
 
@@ -298,8 +298,8 @@ export default function JointTableAsset() {
           <div className="h-4 text-[11px] text-slate-500">
             {beat === 1 && "blue's sixteen numbers — Σ = 100%"}
             {beat === 2 && "…and amber's own sixteen. done?"}
-            {blue !== null && !focus && `given blue in box #${blue + 1}: amber's fresh list — Σ = 100%`}
-            {focus && `blue in #${focus.a + 1} and amber in #${focus.b + 1}?`}
+            {blue !== null && !focus && `if blue is found in box #${blue + 1}: amber's fresh list — Σ = 100%`}
+            {focus && `find blue in #${focus.a + 1} and amber in #${focus.b + 1}?`}
           </div>
         </div>
 
@@ -316,10 +316,10 @@ export default function JointTableAsset() {
                   className="mt-10 text-[10px] text-sky-300/80"
                   style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", height: TSIZE - 40 }}
                 >
-                  where blue might be — one row per box ↓
+                  where blue might be found — one row per box ↓
                 </div>
                 <div className="flex flex-col gap-1">
-                  <div className="text-center text-[10px] text-amber-300/80">where amber might be →</div>
+                  <div className="text-center text-[10px] text-amber-300/80">where amber might be found →</div>
                   <svg
                     width={TSIZE}
                     height={TSIZE}
@@ -366,12 +366,12 @@ export default function JointTableAsset() {
               <div className="h-8 max-w-[300px] text-center text-[11px] leading-snug text-slate-400">
                 {focus ? (
                   <>
-                    blue in box #{focus.a + 1} <b>and</b> amber in box #{focus.b + 1} →{" "}
+                    find blue in box #{focus.a + 1} <b>and</b> amber in box #{focus.b + 1} →{" "}
                     <span className="font-semibold text-sky-200">{joint[focus.a][focus.b].toFixed(2)}%</span>
                   </>
                 ) : rows > 0 && rows < CELLS ? (
                   <>
-                    row #{rows}: amber's list, <i>given</i> blue in box #{rows}
+                    row #{rows}: amber's list, <i>if</i> blue is found in box #{rows}
                   </>
                 ) : rows >= CELLS ? (
                   <>16 rows × 16 columns — every pairing accounted for</>
