@@ -106,7 +106,7 @@ function BeatOne() {
 
 /* ---------- beat 2: why dials multiply ---------- */
 
-function BeatTwo({ auto }: { auto: boolean }) {
+function BeatTwo({ auto, onGrab }: { auto: boolean; onGrab?: () => void }) {
   const [a, setA] = useState({ x: 76, y: 104 });
   const dragging = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -152,6 +152,7 @@ function BeatTwo({ auto }: { auto: boolean }) {
           viewBox={`0 0 ${GRID} ${GRID}`}
           className="cursor-grab touch-none rounded-lg border border-white/10 active:cursor-grabbing"
           onPointerDown={(e) => {
+            onGrab?.();
             dragging.current = true;
             (e.target as Element).setPointerCapture?.(e.pointerId);
             onMove(e);
@@ -324,8 +325,17 @@ function BeatThree({ n, setN }: { n: number; setN: (n: number) => void }) {
 
 const BEATS = ["1 · one electron", "2 · why it multiplies", "3 · let it run"];
 
+/** ?beat=1|2|3 renders a single beat, chrome-free — for embedding each concept inline. */
+function soloBeatFromUrl(): number | null {
+  const p = new URLSearchParams(window.location.search).get("beat");
+  if (!p) return null;
+  const n = parseInt(p, 10);
+  return Number.isFinite(n) && n >= 1 && n <= 3 ? n - 1 : null;
+}
+
 export default function CombinatorialWallAsset() {
-  const [beat, setBeat] = useState(0);
+  const solo = useRef(soloBeatFromUrl()).current;
+  const [beat, setBeat] = useState(solo ?? 0);
   const [n, setN] = useState(6);
   const [auto, setAuto] = useState(false);
   const timers = useRef<number[]>([]);
@@ -339,14 +349,31 @@ export default function CombinatorialWallAsset() {
   const play = useCallback(() => {
     stopAuto();
     setAuto(true);
+    const at = (ms: number, fn: () => void) => timers.current.push(window.setTimeout(fn, ms));
+    if (solo === 1) {
+      // solo beat 2: sweep hands-free until the reader grabs the cloud
+      return;
+    }
+    if (solo === 2) {
+      // solo beat 3: just ramp the electron count
+      setN(1);
+      for (let k = 1; k <= 30; k++) at(k * 380, () => setN(k));
+      at(30 * 380 + 1200, () => setAuto(false));
+      return;
+    }
     setBeat(0);
     setN(1);
-    const at = (ms: number, fn: () => void) => timers.current.push(window.setTimeout(fn, ms));
     at(3200, () => setBeat(1));
     at(10200, () => setBeat(2));
     for (let k = 1; k <= 30; k++) at(10200 + k * 380, () => setN(k));
     at(10200 + 30 * 380 + 1200, () => setAuto(false));
-  }, [stopAuto]);
+  }, [stopAuto, solo]);
+
+  // solo beat 2 starts moving on its own so the correlation is visible before any interaction
+  useEffect(() => {
+    if (solo === 1) setAuto(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
@@ -362,35 +389,49 @@ export default function CombinatorialWallAsset() {
             transition={{ duration: 0.35 }}
           >
             {beat === 0 && <BeatOne />}
-            {beat === 1 && <BeatTwo auto={auto} />}
+            {beat === 1 && <BeatTwo auto={auto} onGrab={stopAuto} />}
             {beat === 2 && <BeatThree n={n} setN={(v) => { stopAuto(); setN(v); }} />}
           </motion.div>
         </AnimatePresence>
       </div>
 
       <div className="flex flex-col items-center gap-2 pb-5">
-        <div className="text-xs text-slate-500">The odometer that outruns the universe — why the exact equation is unsolvable</div>
-        <div className="flex items-center gap-2">
-          {BEATS.map((b, i) => (
-            <button
-              key={b}
-              onClick={() => { stopAuto(); setBeat(i); }}
-              className={`rounded-full px-3 py-1.5 text-xs transition ${
-                beat === i ? "bg-white/15 text-white" : "bg-white/5 text-slate-400 hover:text-white"
-              }`}
-            >
-              {b}
-            </button>
-          ))}
+        {solo === null && (
+          <>
+            <div className="text-xs text-slate-500">The odometer that outruns the universe — why the exact equation is unsolvable</div>
+            <div className="flex items-center gap-2">
+              {BEATS.map((b, i) => (
+                <button
+                  key={b}
+                  onClick={() => { stopAuto(); setBeat(i); }}
+                  className={`rounded-full px-3 py-1.5 text-xs transition ${
+                    beat === i ? "bg-white/15 text-white" : "bg-white/5 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {b}
+                </button>
+              ))}
+              <button
+                onClick={auto ? stopAuto : play}
+                className={`rounded-full px-3 py-1.5 text-xs transition ${
+                  auto ? "bg-red-400/20 text-red-300" : "bg-sky-400/15 text-sky-300 hover:bg-sky-400/25"
+                }`}
+              >
+                {auto ? "■ stop" : "▶ autoplay"}
+              </button>
+            </div>
+          </>
+        )}
+        {solo === 2 && (
           <button
             onClick={auto ? stopAuto : play}
             className={`rounded-full px-3 py-1.5 text-xs transition ${
               auto ? "bg-red-400/20 text-red-300" : "bg-sky-400/15 text-sky-300 hover:bg-sky-400/25"
             }`}
           >
-            {auto ? "■ stop" : "▶ autoplay"}
+            {auto ? "■ stop" : "▶ watch it run away"}
           </button>
-        </div>
+        )}
       </div>
     </div>
   );
