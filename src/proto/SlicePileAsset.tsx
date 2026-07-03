@@ -36,8 +36,14 @@ const N = 4;
 const CELLS = N * N;
 const CELL = 64;
 const SIZE = N * CELL;
-const PILE = 5000;
-const MAX_DOTS = 26; // display cap per box; tallies use true counts
+// 10,000 pairs — the same run count the reader accepted in the one-electron
+// beat, and big enough that mirror-symmetric boxes (e.g. #4 vs #13 about a
+// #1 slice) agree to within a dot or two. At 5,000 the raw-count dot display
+// showed 2x asymmetries between boxes that are exactly equal in expectation
+// (vasa's catch, 2026-07-04): a false signal, fixed by more data + the
+// proportional dot display below — never by symmetrizing the samples.
+const PILE = 10000;
+const MAX_DOTS = 26; // dots per box scale ∝ count, hottest box ≈ this many
 
 const pos = (i: number) => ({ x: i % N, y: Math.floor(i / N) });
 const C = (N - 1) / 2;
@@ -234,7 +240,11 @@ export default function SlicePileAsset() {
             {counts.map((c, i) => {
               const { x, y } = pos(i);
               const isSlice = i === slice;
-              const nDots = Math.round(Math.min(c, MAX_DOTS) * ease(prog));
+              // dot count ∝ box count (a density picture, like the heat that
+              // follows) — raw capped counts would saturate hot boxes while
+              // leaving cold boxes' sampling noise on full display
+              const maxCount = Math.max(...counts, 1);
+              const nDots = Math.round(MAX_DOTS * (c / maxCount) * ease(prog));
               return (
                 <g
                   key={i}
@@ -458,14 +468,15 @@ export default function SlicePileAsset() {
         )}
         {phase === "filtering" && (
           <p>
-            sorting… each surviving run drops a dot where its <b>other</b> click landed
+            sorting… <b className="text-amber-200">dots</b> pile up where the surviving runs'{" "}
+            <b>other</b> clicks landed
           </p>
         )}
         {phase === "marks" && (
           <p>
-            {kept.toLocaleString()} runs survived the cut. each <b className="text-amber-200">dot</b>{" "}
-            is where the partner click landed — notice they keep their distance from the{" "}
-            <b className="text-sky-300">✓ box</b>
+            {kept.toLocaleString()} runs survived the cut. the{" "}
+            <b className="text-amber-200">dots</b> show where their partner clicks landed —
+            notice they keep their distance from the <b className="text-sky-300">✓ box</b>
           </p>
         )}
         {phase === "tallying" && <p>counting dots, box by box…</p>}
