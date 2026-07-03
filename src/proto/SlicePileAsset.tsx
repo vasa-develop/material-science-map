@@ -242,9 +242,13 @@ export default function SlicePileAsset() {
               const isSlice = i === slice;
               // dot count ∝ box count (a density picture, like the heat that
               // follows) — raw capped counts would saturate hot boxes while
-              // leaving cold boxes' sampling noise on full display
+              // leaving cold boxes' sampling noise on full display. Any
+              // nonzero count shows at least one dot: the sliced box's own
+              // rare same-box pairs (~0.9 expected per pile) must not be
+              // rounded into invisibility.
               const maxCount = Math.max(...counts, 1);
-              const nDots = Math.round(MAX_DOTS * (c / maxCount) * ease(prog));
+              const target = c === 0 ? 0 : Math.max(1, Math.round(MAX_DOTS * (c / maxCount)));
+              const nDots = Math.round(target * ease(prog));
               return (
                 <g
                   key={i}
