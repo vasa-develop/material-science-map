@@ -54,10 +54,18 @@ export default function SixteenNumbersAsset() {
   const p = useMemo(() => roundTo100(marginal()), []);
   const maxP = useMemo(() => Math.max(...p), [p]);
 
+  // In /embed/ contexts the mode toggle is hidden (it would spoil the prose's
+  // reveal): the plain embed is detector-only, and `?view=map` serves the
+  // computed map as its own embed for after the reveal paragraph.
+  // The gallery keeps the toggle for authoring.
+  const isEmbed = window.location.pathname.startsWith("/embed");
+  const forcedMap =
+    new URLSearchParams(window.location.search).get("view") === "map";
+
   const { ambient, notifyInteraction } = useAmbient(9000);
   const [hover, setHover] = useState<number | null>(null);
   const [phase, setPhase] = useState(0);
-  const [mode, setMode] = useState<"odds" | "detect">("detect");
+  const [mode, setMode] = useState<"odds" | "detect">(forcedMap ? "odds" : "detect");
   const [counts, setCounts] = useState<number[]>(() => Array(CELLS).fill(0));
   const [runs, setRuns] = useState(0);
   const [lastClick, setLastClick] = useState<number | null>(null);
@@ -467,8 +475,8 @@ export default function SixteenNumbersAsset() {
         )}
       </div>
 
-      {/* mode switch */}
-      <div className="flex items-center gap-1.5">
+      {/* mode switch — authoring gallery only */}
+      <div className={`flex items-center gap-1.5 ${isEmbed ? "hidden" : ""}`}>
         {(
           [
             ["detect", "run the experiment"],
