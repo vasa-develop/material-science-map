@@ -27,6 +27,7 @@ import MlipAsset from "./MlipAsset";
 import MlipGraphAsset from "./MlipGraphAsset";
 import OneLookAsset from "./OneLookAsset";
 import OneRunAsset from "./OneRunAsset";
+import PairRunAsset from "./PairRunAsset";
 import Orbital2sAsset from "./Orbital2sAsset";
 import PredictiveAsset from "./PredictiveAsset";
 import ProductionScalesAsset from "./ProductionScalesAsset";
@@ -42,6 +43,7 @@ export const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "likelihood-list", label: "Primer · the 1,000-number list", Comp: LikelihoodListAsset },
   { id: "one-run", label: "Primer · one run, one click", Comp: OneRunAsset },
   { id: "sixteen-numbers", label: "Primer · 16 boxes, 16 numbers", Comp: SixteenNumbersAsset },
+  { id: "pair-run", label: "Primer · two clicks, one pair", Comp: PairRunAsset },
   { id: "two-cases", label: "Primer · two cases, two lists", Comp: TwoCasesAsset },
   { id: "joint-table", label: "Primer · the million-number table", Comp: JointTableAsset },
   { id: "one-look", label: "Primer · one look, one dot", Comp: OneLookAsset },
