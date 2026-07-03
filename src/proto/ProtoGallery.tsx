@@ -33,12 +33,14 @@ import SdlAsset from "./SdlAsset";
 import SixteenNumbersAsset from "./SixteenNumbersAsset";
 import SynthesisParamsAsset from "./SynthesisParamsAsset";
 import ThinFilmAsset from "./ThinFilmAsset";
+import TwoCasesAsset from "./TwoCasesAsset";
 
 /** A scratch gallery to author + review each node's 3D asset in isolation. */
 export const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "comb-wall", label: "Primer · combinatorial wall", Comp: CombinatorialWallAsset },
   { id: "likelihood-list", label: "Primer · the 1,000-number list", Comp: LikelihoodListAsset },
   { id: "sixteen-numbers", label: "Primer · 16 boxes, 16 numbers", Comp: SixteenNumbersAsset },
+  { id: "two-cases", label: "Primer · two cases, two lists", Comp: TwoCasesAsset },
   { id: "joint-table", label: "Primer · the million-number table", Comp: JointTableAsset },
   { id: "one-look", label: "Primer · one look, one dot", Comp: OneLookAsset },
   { id: "landscape-game", label: "Primer · landscape search game", Comp: EnergyLandscapeGameAsset },
