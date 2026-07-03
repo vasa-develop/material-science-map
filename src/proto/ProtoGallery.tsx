@@ -33,6 +33,7 @@ import PredictiveAsset from "./PredictiveAsset";
 import ProductionScalesAsset from "./ProductionScalesAsset";
 import SdlAsset from "./SdlAsset";
 import SixteenNumbersAsset from "./SixteenNumbersAsset";
+import SlicePileAsset from "./SlicePileAsset";
 import SynthesisParamsAsset from "./SynthesisParamsAsset";
 import ThinFilmAsset from "./ThinFilmAsset";
 import TwoCasesAsset from "./TwoCasesAsset";
@@ -44,6 +45,7 @@ export const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "one-run", label: "Primer · one run, one click", Comp: OneRunAsset },
   { id: "sixteen-numbers", label: "Primer · 16 boxes, 16 numbers", Comp: SixteenNumbersAsset },
   { id: "pair-run", label: "Primer · two clicks, one pair", Comp: PairRunAsset },
+  { id: "slice-pile", label: "Primer · slicing the pile", Comp: SlicePileAsset },
   { id: "two-cases", label: "Primer · two cases, two lists", Comp: TwoCasesAsset },
   { id: "joint-table", label: "Primer · the million-number table", Comp: JointTableAsset },
   { id: "one-look", label: "Primer · one look, one dot", Comp: OneLookAsset },
