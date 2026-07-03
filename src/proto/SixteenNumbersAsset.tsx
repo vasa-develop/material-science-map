@@ -86,20 +86,49 @@ export default function SixteenNumbersAsset() {
     setRuns((r) => r + n);
   };
 
-  // animated batch: 100 clicks land one by one over ~4.5s, tally live
+  // animated attempt: 1,000 runs per press, each press REBUILDS the lab from
+  // scratch. Clicks land one by one at first, then accelerate (~4–5s total),
+  // so the reader sees the shares jump around early and calm down late.
+  // Each completed attempt's final shares are kept for comparison, so a
+  // second press demonstrates reproducibility: fresh lab, same map.
+  const ATTEMPT_RUNS = 10000;
   const [animating, setAnimating] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [lastFinal, setLastFinal] = useState<number[] | null>(null);
   const batchIv = useRef<number | null>(null);
-  const runBatch = (n = 100) => {
+
+  const runAttempt = () => {
     if (animating) return;
+    // remember the previous completed attempt's map, so the new one can be
+    // compared against it live (the reproducibility beat)
+    if (runs >= ATTEMPT_RUNS) {
+      setLastFinal(counts.map((c) => (c / runs) * 100));
+    }
+    setCounts(Array(CELLS).fill(0));
+    setRuns(0);
+    setLastClick(null);
     setAnimating(true);
-    let k = 0;
+    const local = Array(CELLS).fill(0);
+    let done = 0;
     batchIv.current = window.setInterval(() => {
-      run(1);
-      k += 1;
-      if (k >= n) {
+      // ramp: single clicks first, then bigger and bigger gulps
+      const chunk =
+        done < 12 ? 1 : done < 60 ? 4 : done < 200 ? 12 : done < 600 ? 32 : done < 2000 ? 120 : 400;
+      const k = Math.min(chunk, ATTEMPT_RUNS - done);
+      let last = 0;
+      for (let i = 0; i < k; i++) {
+        last = sample();
+        local[last] += 1;
+      }
+      done += k;
+      setCounts([...local]);
+      setLastClick(last);
+      setRuns(done);
+      if (done >= ATTEMPT_RUNS) {
         if (batchIv.current !== null) window.clearInterval(batchIv.current);
         batchIv.current = null;
         setAnimating(false);
+        setAttempt((a) => a + 1);
       }
     }, 45);
   };
@@ -117,6 +146,8 @@ export default function SixteenNumbersAsset() {
     setCounts(Array(CELLS).fill(0));
     setRuns(0);
     setLastClick(null);
+    setAttempt(0);
+    setLastFinal(null);
   };
 
   // ambient walk: visit each box in reading order, then rest on the total
@@ -129,10 +160,11 @@ export default function SixteenNumbersAsset() {
     return () => window.clearInterval(iv);
   }, [ambient, mode]);
 
-  // in detector view, idle = the experiment keeps running itself
+  // in detector view, idle = the experiment reruns itself, attempt by attempt
   useEffect(() => {
     if (!ambient || mode !== "detect") return;
-    const iv = window.setInterval(() => run(1), 420);
+    runAttempt();
+    const iv = window.setInterval(() => runAttempt(), 9000);
     return () => window.clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ambient, mode]);
@@ -255,16 +287,29 @@ export default function SixteenNumbersAsset() {
                       {fmt(v)}
                     </text>
                   ) : (
-                    <text
-                      x={x * CELL + CELL / 2}
-                      y={y * CELL + CELL / 2 + 10}
-                      textAnchor="middle"
-                      fontSize="13"
-                      fontWeight={600}
-                      fill="#fde68a"
-                    >
-                      {runs > 0 ? fmt(shares[i]) : "—"}
-                    </text>
+                    <>
+                      <text
+                        x={x * CELL + CELL / 2}
+                        y={y * CELL + CELL / 2 + (lastFinal ? 6 : 10)}
+                        textAnchor="middle"
+                        fontSize="13"
+                        fontWeight={600}
+                        fill="#fde68a"
+                      >
+                        {runs > 0 ? fmt(shares[i]) : "—"}
+                      </text>
+                      {lastFinal && (
+                        <text
+                          x={x * CELL + CELL / 2}
+                          y={y * CELL + CELL / 2 + 22}
+                          textAnchor="middle"
+                          fontSize="8.5"
+                          fill="rgba(148,163,184,0.75)"
+                        >
+                          last {fmt(lastFinal[i])}
+                        </text>
+                      )}
+                    </>
                   )}
                 </g>
               );
@@ -365,22 +410,28 @@ export default function SixteenNumbersAsset() {
               <button
                 onClick={() => {
                   notifyInteraction();
-                  runBatch(100);
+                  runAttempt();
                 }}
                 disabled={animating}
                 className="rounded-full bg-amber-400/15 px-3.5 py-1.5 text-xs font-medium text-amber-200 transition hover:bg-amber-400/25 disabled:opacity-50"
               >
-                {animating ? "running…" : "run the experiment ×100"}
+                {animating
+                  ? "running…"
+                  : attempt === 0
+                    ? "run the experiment ×10,000"
+                    : "rebuild the lab · run ×10,000 again"}
               </button>
-              <button
-                onClick={() => {
-                  notifyInteraction();
-                  reset();
-                }}
-                className="rounded-full bg-white/[0.06] px-3.5 py-1.5 text-xs text-slate-400 transition hover:bg-white/10"
-              >
-                start over
-              </button>
+              {attempt > 0 && !animating && (
+                <button
+                  onClick={() => {
+                    notifyInteraction();
+                    reset();
+                  }}
+                  className="rounded-full bg-white/[0.06] px-3.5 py-1.5 text-xs text-slate-400 transition hover:bg-white/10"
+                >
+                  clear
+                </button>
+              )}
             </div>
             <p className="h-9 max-w-[300px] text-center text-[11.5px] leading-snug text-slate-400">
               {focus !== null ? (
@@ -395,15 +446,20 @@ export default function SixteenNumbersAsset() {
                 <span className="text-slate-600">
                   no runs yet — press the button and watch the tally build, click by click
                 </span>
-              ) : runs < 300 ? (
+              ) : animating && runs < 300 ? (
+                <>the shares are jumping all over the place at first…</>
+              ) : animating ? (
+                <>…but as the runs pile up, the shares calm down</>
+              ) : attempt <= 1 ? (
                 <>
-                  the shares are still jumping around — <b>run another batch</b> and watch
-                  them calm down
+                  10,000 runs done — the shares have settled. now <b>rebuild the lab</b> and
+                  run 10,000 <i>fresh</i> runs: will the map come back the same?
                 </>
               ) : (
                 <>
-                  the shares have <b>stopped moving</b>. press <i>start over</i> and watch
-                  them settle onto the same map all over again.
+                  a brand-new lab, 10,000 brand-new runs — and the <b>same map</b> came back
+                  (compare each box with its <i>last</i> value). the clicks are lawless; the
+                  shares are law.
                 </>
               )}
             </p>
