@@ -30,6 +30,7 @@ import Orbital2sAsset from "./Orbital2sAsset";
 import PredictiveAsset from "./PredictiveAsset";
 import ProductionScalesAsset from "./ProductionScalesAsset";
 import SdlAsset from "./SdlAsset";
+import SixteenNumbersAsset from "./SixteenNumbersAsset";
 import SynthesisParamsAsset from "./SynthesisParamsAsset";
 import ThinFilmAsset from "./ThinFilmAsset";
 
@@ -37,6 +38,7 @@ import ThinFilmAsset from "./ThinFilmAsset";
 export const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "comb-wall", label: "Primer · combinatorial wall", Comp: CombinatorialWallAsset },
   { id: "likelihood-list", label: "Primer · the 1,000-number list", Comp: LikelihoodListAsset },
+  { id: "sixteen-numbers", label: "Primer · 16 boxes, 16 numbers", Comp: SixteenNumbersAsset },
   { id: "joint-table", label: "Primer · the million-number table", Comp: JointTableAsset },
   { id: "one-look", label: "Primer · one look, one dot", Comp: OneLookAsset },
   { id: "landscape-game", label: "Primer · landscape search game", Comp: EnergyLandscapeGameAsset },
