@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useAmbient } from "./useAmbient";
 
@@ -86,7 +86,34 @@ export default function SixteenNumbersAsset() {
     setRuns((r) => r + n);
   };
 
+  // animated batch: 100 clicks land one by one over ~4.5s, tally live
+  const [animating, setAnimating] = useState(false);
+  const batchIv = useRef<number | null>(null);
+  const runBatch = (n = 100) => {
+    if (animating) return;
+    setAnimating(true);
+    let k = 0;
+    batchIv.current = window.setInterval(() => {
+      run(1);
+      k += 1;
+      if (k >= n) {
+        if (batchIv.current !== null) window.clearInterval(batchIv.current);
+        batchIv.current = null;
+        setAnimating(false);
+      }
+    }, 45);
+  };
+  useEffect(
+    () => () => {
+      if (batchIv.current !== null) window.clearInterval(batchIv.current);
+    },
+    [],
+  );
+
   const reset = () => {
+    if (batchIv.current !== null) window.clearInterval(batchIv.current);
+    batchIv.current = null;
+    setAnimating(false);
     setCounts(Array(CELLS).fill(0));
     setRuns(0);
     setLastClick(null);
@@ -136,9 +163,9 @@ export default function SixteenNumbersAsset() {
           </>
         ) : (
           <>
-            Every box wired with its own tiny <b>electron detector</b>. Each run: a fresh
-            electron, detectors on — <b>exactly one click</b>. Try calling the next click; then
-            keep a tally and watch what the <i>pile</i> of runs does.
+            The same experiment — but now we <b>keep a tally</b>: each detector shows the share
+            of all clicks it has caught so far. Run a batch and watch the tally build{" "}
+            <i>click by click</i>.
           </>
         )}
       </p>
@@ -338,20 +365,12 @@ export default function SixteenNumbersAsset() {
               <button
                 onClick={() => {
                   notifyInteraction();
-                  run(1);
+                  runBatch(100);
                 }}
-                className="rounded-full bg-amber-400/15 px-3.5 py-1.5 text-xs font-medium text-amber-200 transition hover:bg-amber-400/25"
+                disabled={animating}
+                className="rounded-full bg-amber-400/15 px-3.5 py-1.5 text-xs font-medium text-amber-200 transition hover:bg-amber-400/25 disabled:opacity-50"
               >
-                one run
-              </button>
-              <button
-                onClick={() => {
-                  notifyInteraction();
-                  run(100);
-                }}
-                className="rounded-full bg-amber-400/15 px-3.5 py-1.5 text-xs font-medium text-amber-200 transition hover:bg-amber-400/25"
-              >
-                ×100 runs
+                {animating ? "running…" : "run the experiment ×100"}
               </button>
               <button
                 onClick={() => {
@@ -360,7 +379,7 @@ export default function SixteenNumbersAsset() {
                 }}
                 className="rounded-full bg-white/[0.06] px-3.5 py-1.5 text-xs text-slate-400 transition hover:bg-white/10"
               >
-                reset
+                start over
               </button>
             </div>
             <p className="h-9 max-w-[300px] text-center text-[11.5px] leading-snug text-slate-400">
@@ -374,17 +393,17 @@ export default function SixteenNumbersAsset() {
                 </>
               ) : runs === 0 ? (
                 <span className="text-slate-600">
-                  no runs yet — press <b>one run</b> and watch a single detector click
+                  no runs yet — press the button and watch the tally build, click by click
                 </span>
               ) : runs < 300 ? (
                 <>
-                  no single click is predictable — keep going and watch the shares start
-                  to settle
+                  the shares are still jumping around — <b>run another batch</b> and watch
+                  them calm down
                 </>
               ) : (
                 <>
-                  the clicks never got predictable — but the <b>shares</b> have stopped
-                  moving. that stable pattern is real, and it's the point.
+                  the shares have <b>stopped moving</b>. press <i>start over</i> and watch
+                  them settle onto the same map all over again.
                 </>
               )}
             </p>
