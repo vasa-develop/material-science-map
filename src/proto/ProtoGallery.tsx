@@ -26,6 +26,7 @@ import MdProbeAsset from "./MdProbeAsset";
 import MlipAsset from "./MlipAsset";
 import MlipGraphAsset from "./MlipGraphAsset";
 import OneLookAsset from "./OneLookAsset";
+import OneRunAsset from "./OneRunAsset";
 import Orbital2sAsset from "./Orbital2sAsset";
 import PredictiveAsset from "./PredictiveAsset";
 import ProductionScalesAsset from "./ProductionScalesAsset";
@@ -39,6 +40,7 @@ import TwoCasesAsset from "./TwoCasesAsset";
 export const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "comb-wall", label: "Primer · combinatorial wall", Comp: CombinatorialWallAsset },
   { id: "likelihood-list", label: "Primer · the 1,000-number list", Comp: LikelihoodListAsset },
+  { id: "one-run", label: "Primer · one run, one click", Comp: OneRunAsset },
   { id: "sixteen-numbers", label: "Primer · 16 boxes, 16 numbers", Comp: SixteenNumbersAsset },
   { id: "two-cases", label: "Primer · two cases, two lists", Comp: TwoCasesAsset },
   { id: "joint-table", label: "Primer · the million-number table", Comp: JointTableAsset },

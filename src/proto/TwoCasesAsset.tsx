@@ -2,13 +2,13 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 
 /**
- * Asset: "two cases, two lists" — the dependence made concrete.
+ * Asset: "two slices, two lists" — the dependence made concrete.
  *
- * Two side-by-side runs of the same setup. In each panel the first electron
- * (blue dot) has turned up in one specific box, and the second electron's
- * sixteen numbers (amber) reshape around that outcome: avoid blue's
- * neighborhood, stay near the nucleus. Click any box to move where the first
- * electron was found and watch the whole amber list reshuffle.
+ * PAIR-CLICKS FRAMING (2026-07-03): with two electrons, every run ends with
+ * TWO clicks — a pair of boxes. Each panel shows one SLICE of the big pile of
+ * recorded runs: keep only the runs where a given box clicked (blue), then
+ * tally where the OTHER click landed (amber). Click any box to slice the pile
+ * a different way and watch the whole amber list reshuffle.
  *
  * Deliberately NO ambient auto-tour: the prose names box #1 and box #11 for
  * the two panels, so the defaults must still be showing when the reader
@@ -107,11 +107,11 @@ function CasePanel({
                     x={x * CELL + CELL / 2}
                     y={y * CELL + CELL / 2 + 8}
                     textAnchor="middle"
-                    fontSize="9"
+                    fontSize="10"
                     fontWeight={700}
                     fill="#06070d"
                   >
-                    1st
+                    ✓
                   </text>
                 </>
               )}
@@ -121,8 +121,8 @@ function CasePanel({
         <circle cx={SIZE / 2} cy={SIZE / 2} r={5.5} fill="#f8fafc" opacity={0.85} />
       </svg>
       <div className="h-8 max-w-[250px] text-center text-[11px] leading-snug text-slate-400">
-        1st electron turned up in <b className="text-sky-300">box #{blue + 1}</b> → the 2nd
-        electron's sixteen numbers, Σ = 100%
+        runs where <b className="text-sky-300">box #{blue + 1}</b> clicked → where the{" "}
+        <b className="text-amber-300">other click</b> landed, Σ = 100%
       </div>
     </div>
   );
@@ -138,21 +138,21 @@ export default function TwoCasesAsset() {
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center gap-5 bg-[#06070d] px-4">
       <p className="max-w-[640px] text-center text-[13.5px] leading-relaxed text-slate-300">
-        Same nucleus, same two electrons, same sixteen boxes — two runs of the same experiment.
-        The only difference: where the <b className="text-sky-300">first electron</b> turned up
-        when we looked. Watch what that alone does to the{" "}
-        <b className="text-amber-300">second electron's</b> sixteen numbers.
+        Two electrons, so every run ends with <b>two clicks</b> — a pair of boxes. Below: the
+        same big pile of runs, sliced two ways. Keep only the runs where{" "}
+        <b className="text-sky-300">a given box clicked</b>, and tally where the{" "}
+        <b className="text-amber-300">other click</b> landed.
       </p>
 
       <div className="flex flex-wrap items-start justify-center gap-8">
-        <CasePanel title="case one" blue={blueA} onPick={pick("a")} />
-        <CasePanel title="case two" blue={blueB} onPick={pick("b")} />
+        <CasePanel title="slice one" blue={blueA} onPick={pick("a")} />
+        <CasePanel title="slice two" blue={blueB} onPick={pick("b")} />
       </div>
 
       <p className="max-w-[560px] text-center text-[11.5px] leading-snug text-slate-400">
-        Change where the first electron turns up, and the second electron's <b>entire list</b>{" "}
-        changes — low numbers hugging the blue dot, higher ones far from it.{" "}
-        <span className="text-slate-500">Click any box to move where the first one was found.</span>
+        Slice the pile by a different box, and the other electron's <b>entire list</b> changes —
+        low numbers hugging the blue box, higher ones far from it.{" "}
+        <span className="text-slate-500">Click any box to slice by it.</span>
       </p>
     </div>
   );

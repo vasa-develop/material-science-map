@@ -3,18 +3,19 @@ import { motion } from "framer-motion";
 import { useAmbient } from "./useAmbient";
 
 /**
- * Asset: "16 boxes, 16 numbers" — the single-electron likelihood map for the
- * rough-draft's shrunken 2D world.
+ * Asset: "16 boxes, 16 numbers" — the single-electron demonstration for the
+ * rough-draft's shrunken 2D world. OBSERVATION-FIRST (2026-07-03): the
+ * detector view now LEADS and shows no computed odds anywhere — the reader
+ * arrives at the settled shares first; the prose then reveals that the
+ * equation computes exactly this map, and the "the computed map" view is the
+ * post-reveal state (the receipt summing to 100%).
  *
  * Two views:
- *  · "the odds" — the 4×4 world, one number per box ("if we go looking for
- *    the electron, how likely are we to find it inside this box?"), plus the
- *    sixteen numbers written as an addition totalling 100% (a receipt, not
- *    "a list" — the prose hasn't introduced lists yet).
- *  · "flip the detectors on" — every box wired with its own detector; each
- *    run gives exactly one click, and the click-shares converge onto the
- *    computed odds. Cashes out what the numbers MEAN (the pile, not the next
- *    click) — sampling verifies the map, it is not where the map came from.
+ *  · "run the experiment" (default) — every box wired with its own detector;
+ *    each run gives exactly one click; single clicks are unpredictable, the
+ *    shares settle.
+ *  · "the computed map" — the same sixteen numbers as what the equation hands
+ *    back, plus the receipt totalling 100%.
  *
  * Uses the same marginal distribution as JointTableAsset so the reader meets
  * the identical map again when the two-electron table shows up.
@@ -56,7 +57,7 @@ export default function SixteenNumbersAsset() {
   const { ambient, notifyInteraction } = useAmbient(9000);
   const [hover, setHover] = useState<number | null>(null);
   const [phase, setPhase] = useState(0);
-  const [mode, setMode] = useState<"odds" | "detect">("odds");
+  const [mode, setMode] = useState<"odds" | "detect">("detect");
   const [counts, setCounts] = useState<number[]>(() => Array(CELLS).fill(0));
   const [runs, setRuns] = useState(0);
   const [lastClick, setLastClick] = useState<number | null>(null);
@@ -129,18 +130,15 @@ export default function SixteenNumbersAsset() {
       <p className="max-w-[620px] text-center text-[13.5px] leading-relaxed text-slate-300">
         {mode === "odds" ? (
           <>
-            One electron, sixteen boxes. For each box we ask the same question —{" "}
-            <i>
-              "if we go looking for the electron, how likely are we to find it inside{" "}
-              <b>this</b> box?"
-            </i>{" "}
-            — and write the answer down.
+            And here is the reveal: these sixteen numbers — the ones your tally was settling
+            onto — are exactly what the <b>Schrödinger equation computes</b>. No detectors, no
+            thousand reruns.
           </>
         ) : (
           <>
-            Now wire every box with its own tiny <b>electron detector</b>. Each run: a fresh
-            electron, detectors on — <b>exactly one click</b>. No single run can be predicted; but
-            watch what the <i>pile</i> of runs does.
+            Every box wired with its own tiny <b>electron detector</b>. Each run: a fresh
+            electron, detectors on — <b>exactly one click</b>. Try calling the next click; then
+            keep a tally and watch what the <i>pile</i> of runs does.
           </>
         )}
       </p>
@@ -230,27 +228,16 @@ export default function SixteenNumbersAsset() {
                       {fmt(v)}
                     </text>
                   ) : (
-                    <>
-                      <text
-                        x={x * CELL + CELL / 2}
-                        y={y * CELL + CELL / 2 + 6}
-                        textAnchor="middle"
-                        fontSize="13"
-                        fontWeight={600}
-                        fill="#fde68a"
-                      >
-                        {runs > 0 ? fmt(shares[i]) : "—"}
-                      </text>
-                      <text
-                        x={x * CELL + CELL / 2}
-                        y={y * CELL + CELL / 2 + 22}
-                        textAnchor="middle"
-                        fontSize="8.5"
-                        fill="rgba(125,211,252,0.7)"
-                      >
-                        odds {fmt(v)}
-                      </text>
-                    </>
+                    <text
+                      x={x * CELL + CELL / 2}
+                      y={y * CELL + CELL / 2 + 10}
+                      textAnchor="middle"
+                      fontSize="13"
+                      fontWeight={600}
+                      fill="#fde68a"
+                    >
+                      {runs > 0 ? fmt(shares[i]) : "—"}
+                    </text>
                   )}
                 </g>
               );
@@ -261,7 +248,7 @@ export default function SixteenNumbersAsset() {
           <div className="text-[11px] text-slate-500">
             {mode === "odds"
               ? "⚪ the nucleus — boxes near it are likelier"
-              : "amber = share of clicks so far · blue = the computed odds"}
+              : "amber = share of all clicks each detector has caught so far"}
           </div>
         </div>
 
@@ -379,21 +366,25 @@ export default function SixteenNumbersAsset() {
             <p className="h-9 max-w-[300px] text-center text-[11.5px] leading-snug text-slate-400">
               {focus !== null ? (
                 <>
-                  detector #{focus + 1}: computed{" "}
-                  <b className="text-sky-200">{fmt(p[focus])}</b> · saw{" "}
+                  detector #{focus + 1} has caught{" "}
                   <b className="text-amber-200">
                     {runs > 0 ? fmt(shares[focus]) : "—"}
                   </b>{" "}
-                  of {runs.toLocaleString()} clicks
+                  of {runs.toLocaleString()} clicks so far
                 </>
               ) : runs === 0 ? (
                 <span className="text-slate-600">
                   no runs yet — press <b>one run</b> and watch a single detector click
                 </span>
+              ) : runs < 300 ? (
+                <>
+                  no single click is predictable — keep going and watch the shares start
+                  to settle
+                </>
               ) : (
                 <>
-                  no run's click was predictable — but the shares are settling onto the
-                  computed odds
+                  the clicks never got predictable — but the <b>shares</b> have stopped
+                  moving. that stable pattern is real, and it's the point.
                 </>
               )}
             </p>
@@ -405,8 +396,8 @@ export default function SixteenNumbersAsset() {
       <div className="flex items-center gap-1.5">
         {(
           [
-            ["odds", "the odds"],
-            ["detect", "flip the detectors on"],
+            ["detect", "run the experiment"],
+            ["odds", "the computed map"],
           ] as const
         ).map(([m, label]) => (
           <button
