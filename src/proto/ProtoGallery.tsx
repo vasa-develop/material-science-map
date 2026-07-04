@@ -11,6 +11,7 @@ import LikelihoodListAsset from "./LikelihoodListAsset";
 import DatabaseStackAsset from "./DatabaseStackAsset";
 import DatabasesAsset from "./DatabasesAsset";
 import DensityAsset from "./DensityAsset";
+import DensityCollapseAsset from "./DensityCollapseAsset";
 import FoundationsAsset from "./FoundationsAsset";
 import FutureAsset from "./FutureAsset";
 import GenerativeAsset from "./GenerativeAsset";
@@ -27,6 +28,7 @@ import MlipAsset from "./MlipAsset";
 import MlipGraphAsset from "./MlipGraphAsset";
 import OneLookAsset from "./OneLookAsset";
 import OneRunAsset from "./OneRunAsset";
+import OneTileAsset from "./OneTileAsset";
 import PairRunAsset from "./PairRunAsset";
 import Orbital2sAsset from "./Orbital2sAsset";
 import PredictiveAsset from "./PredictiveAsset";
@@ -37,6 +39,7 @@ import SlicePileAsset from "./SlicePileAsset";
 import SynthesisParamsAsset from "./SynthesisParamsAsset";
 import ThinFilmAsset from "./ThinFilmAsset";
 import TwoCasesAsset from "./TwoCasesAsset";
+import TwoLedgersAsset from "./TwoLedgersAsset";
 
 /** A scratch gallery to author + review each node's 3D asset in isolation. */
 export const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
@@ -48,6 +51,9 @@ export const ASSETS: { id: string; label: string; Comp: ComponentType }[] = [
   { id: "slice-pile", label: "Primer · slicing the pile", Comp: SlicePileAsset },
   { id: "two-cases", label: "Primer · two cases, two lists", Comp: TwoCasesAsset },
   { id: "joint-table", label: "Primer · the million-number table", Comp: JointTableAsset },
+  { id: "density-collapse", label: "Primer · tear up the pairing", Comp: DensityCollapseAsset },
+  { id: "two-ledgers", label: "Primer · two ledgers race", Comp: TwoLedgersAsset },
+  { id: "one-tile", label: "Primer · one tile, repeated", Comp: OneTileAsset },
   { id: "one-look", label: "Primer · one look, one dot", Comp: OneLookAsset },
   { id: "landscape-game", label: "Primer · landscape search game", Comp: EnergyLandscapeGameAsset },
   { id: "diamond-graphite", label: "Primer · diamond vs graphite", Comp: DiamondGraphiteAsset },
