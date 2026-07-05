@@ -16,7 +16,13 @@ import { useAmbient } from "./useAmbient";
  *     (guessed)", size 1 forever.
  *
  * Both bars live on the SAME log ruler, which is the whole joke: the cheat's
- * bar never visibly leaves the floor.
+ * bar never visibly leaves the start line.
+ *
+ * Layout (2026-07-06): cards side by side, ruler HORIZONTAL underneath.
+ * The first cut used a vertical ruler as a third column; at embed widths
+ * (~700px) the row wrapped and the stack overflowed the 660px iframe
+ * (vasa's recording). Horizontal ruler keeps the whole asset ~560px tall
+ * at any width down to ~520px.
  *
  * Ambient: auto-ramps the slider until the reader grabs it (same pattern as
  * comb-wall's solo beat 3).
@@ -97,9 +103,11 @@ export default function TwoLedgersAsset() {
   const digits = useMemo(() => writtenOut(n), [n]);
   const m = milestone(n);
 
-  // shared cosmic ruler
-  const H = 280;
-  const y = (e: number) => H - (e / 100) * H;
+  // shared cosmic ruler — horizontal, so it never forces a wrap
+  const ML = 56; // left margin for the bar labels
+  const PW = 540; // plot width
+  const RW = ML + PW + 24; // room for the overflow arrow
+  const rx = (e: number) => ML + (Math.min(e, 100) / 100) * PW;
 
   // grocery list: first rows + ellipsis + last row once it gets long
   const listRows = useMemo(() => {
@@ -108,7 +116,7 @@ export default function TwoLedgersAsset() {
   }, [n]);
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-[#06070d] px-4">
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-2.5 bg-[#06070d] px-4">
       <p className="max-w-[640px] text-center text-[13.5px] leading-relaxed text-slate-300">
         Same system, two ways to keep the books. <b className="text-red-300">Honest</b>: track
         every pairing — the list <b>multiplies</b> by 1,000 per electron.{" "}
@@ -129,7 +137,7 @@ export default function TwoLedgersAsset() {
           className="w-56 accent-sky-400"
         />
         <span className="text-xs text-slate-500">{MAX_N}</span>
-        <div className="ml-2 w-40 text-sm text-slate-300">
+        <div className="ml-2 w-40 whitespace-nowrap text-sm text-slate-300">
           electrons: <b className="tabular-nums text-slate-100">{n}</b>
           {n % 6 === 0 && (
             <span className="text-slate-500">
@@ -167,69 +175,6 @@ export default function TwoLedgersAsset() {
             multiplies ×1,000 with every electron
           </div>
         </div>
-
-        {/* ——— middle: the shared cosmic ruler ——— */}
-        <svg width={252} height={H + 34} viewBox={`0 0 252 ${H + 34}`} className="shrink-0">
-          <line x1={46} y1={10} x2={46} y2={H + 10} stroke="rgba(255,255,255,0.25)" />
-          {REFS.map((r) => (
-            <g key={r.exp} transform={`translate(0, ${y(r.exp) + 10})`}>
-              <line
-                x1={30}
-                x2={62}
-                stroke={expHonest >= r.exp ? "rgba(248,113,113,0.9)" : "rgba(148,163,184,0.6)"}
-                strokeWidth="1.5"
-              />
-              <line x1={62} x2={246} stroke="rgba(148,163,184,0.18)" strokeDasharray="3 4" />
-              <text x={66} y={-3} fontSize="9" fill={expHonest >= r.exp ? "#fca5a5" : "#94a3b8"}>
-                10
-                <tspan fontSize="7" dy="-3">
-                  {r.exp}
-                </tspan>
-                <tspan fontSize="9" dy="3">
-                  {" "}
-                  {r.label}
-                </tspan>
-              </text>
-            </g>
-          ))}
-          {/* honest bar */}
-          <motion.rect
-            x={31}
-            width={13}
-            rx={3}
-            animate={{ y: y(Math.min(expHonest, 100)) + 10, height: H - y(Math.min(expHonest, 100)) }}
-            transition={{ type: "spring", stiffness: 90, damping: 20 }}
-            fill={over ? "rgba(248,113,113,0.75)" : "rgba(248,113,113,0.55)"}
-          />
-          {/* cheat bar — same scale; the joke is it never leaves the floor */}
-          <motion.rect
-            x={48}
-            width={13}
-            rx={3}
-            animate={{ y: y(expCheat) + 10, height: H - y(expCheat) }}
-            transition={{ type: "spring", stiffness: 90, damping: 20 }}
-            fill="rgba(56,189,248,0.8)"
-          />
-          {over && (
-            <motion.text
-              x={37}
-              y={8}
-              textAnchor="middle"
-              fontSize="14"
-              fill="#f87171"
-              animate={{ opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: 1.2, repeat: Infinity }}
-            >
-              ↑
-            </motion.text>
-          )}
-          <text x={44} y={H + 22} textAnchor="end" fontSize="9" fill="#fca5a5">
-            honest ·
-          </text>
-          <text x={48} y={H + 22} textAnchor="start" fontSize="9" fill="#7dd3fc">
-            cheat
-          </text>
-        </svg>
 
         {/* ——— right: the Kohn–Sham cheat ——— */}
         <div className="flex w-[250px] flex-col items-center gap-2 rounded-xl border border-sky-400/30 bg-sky-400/[0.05] px-4 py-3 shadow-[0_0_24px_rgba(56,189,248,0.10)]">
@@ -283,6 +228,89 @@ export default function TwoLedgersAsset() {
           </div>
         </div>
       </div>
+
+      {/* ——— the shared cosmic ruler, horizontal ——— */}
+      <svg width={RW} height={100} viewBox={`0 0 ${RW} 100`} className="max-w-full shrink-0">
+        {REFS.map((r, i) => {
+          const x = rx(r.exp);
+          const level = i % 2 === 0 ? 26 : 10; // staggered so labels don't collide
+          const passed = expHonest >= r.exp;
+          return (
+            <g key={r.exp}>
+              <line
+                x1={x}
+                y1={level + 3}
+                x2={x}
+                y2={82}
+                stroke={passed ? "rgba(248,113,113,0.5)" : "rgba(148,163,184,0.3)"}
+                strokeDasharray="3 4"
+              />
+              <text
+                x={Math.min(x, RW - 8)}
+                y={level}
+                textAnchor={x > RW - 130 ? "end" : "middle"}
+                fontSize="9"
+                fill={passed ? "#fca5a5" : "#94a3b8"}
+              >
+                10
+                <tspan fontSize="7" dy="-3">
+                  {r.exp}
+                </tspan>
+                <tspan fontSize="9" dy="3">
+                  {" "}
+                  {r.label}
+                </tspan>
+              </text>
+            </g>
+          );
+        })}
+        {/* honest bar */}
+        <text x={ML - 6} y={47} textAnchor="end" fontSize="9.5" fill="#fca5a5">
+          honest
+        </text>
+        <motion.rect
+          x={ML}
+          y={38}
+          height={12}
+          rx={3}
+          animate={{ width: Math.max(rx(expHonest) - ML, 3) }}
+          transition={{ type: "spring", stiffness: 90, damping: 20 }}
+          fill={over ? "rgba(248,113,113,0.8)" : "rgba(248,113,113,0.55)"}
+        />
+        {over && (
+          <motion.text
+            x={ML + PW + 4}
+            y={48}
+            fontSize="13"
+            fill="#f87171"
+            animate={{ opacity: [0.4, 1, 0.4] }}
+            transition={{ duration: 1.2, repeat: Infinity }}
+          >
+            →
+          </motion.text>
+        )}
+        {/* cheat bar — same scale; the joke is it never leaves the start line */}
+        <text x={ML - 6} y={67} textAnchor="end" fontSize="9.5" fill="#7dd3fc">
+          cheat
+        </text>
+        <motion.rect
+          x={ML}
+          y={58}
+          height={12}
+          rx={3}
+          animate={{ width: Math.max(rx(expCheat) - ML, 3) }}
+          transition={{ type: "spring", stiffness: 90, damping: 20 }}
+          fill="rgba(56,189,248,0.85)"
+        />
+        {/* baseline axis */}
+        <line x1={ML} y1={82} x2={ML + PW} y2={82} stroke="rgba(255,255,255,0.25)" />
+        <text x={ML} y={95} textAnchor="middle" fontSize="8.5" fill="#64748b">
+          1
+        </text>
+        <text x={ML + PW} y={95} textAnchor="end" fontSize="8.5" fill="#64748b">
+          10¹⁰⁰ numbers (log scale)
+        </text>
+      </svg>
 
       {/* milestone line */}
       <AnimatePresence mode="wait">
